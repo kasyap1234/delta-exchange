@@ -193,9 +193,20 @@ class HedgeManager:
         self._position_counter += 1
         position_id = f"hedge_{self._position_counter}_{datetime.now().strftime('%Y%m%d%H%M%S')}"
         
-        # Execute hedge order
+        # Execute orders
         if not self.dry_run:
             try:
+                # 1. Place Primary Order
+                primary_order_side = OrderSide.BUY if primary_side == 'long' else OrderSide.SELL
+                self.client.place_order(
+                    symbol=primary_symbol,
+                    side=primary_order_side,
+                    size=primary_size,
+                    order_type=OrderType.MARKET
+                )
+                log.info(f"Primary order placed: {primary_side.upper()} {primary_size:.6f} {primary_symbol}")
+
+                # 2. Place Hedge Order
                 hedge_order_side = OrderSide.SELL if hedge_side == 'short' else OrderSide.BUY
                 self.client.place_order(
                     symbol=hedge_symbol,
@@ -205,11 +216,11 @@ class HedgeManager:
                 )
                 log.info(f"Hedge order placed: {hedge_side.upper()} {hedge_size:.6f} {hedge_symbol}")
             except Exception as e:
-                log.error(f"Failed to place hedge order: {e}")
+                log.error(f"Failed to place hedged position orders: {e}")
                 return None
         else:
-            log.info(f"[DRY RUN] Would place hedge: {hedge_side.upper()} "
-                    f"{hedge_size:.6f} {hedge_symbol}")
+            log.info(f"[DRY RUN] Would place primary: {primary_side.upper()} {primary_size:.6f} {primary_symbol}")
+            log.info(f"[DRY RUN] Would place hedge: {hedge_side.upper()} {hedge_size:.6f} {hedge_symbol}")
         
         # Get current correlation
         corr_result = self.correlation.calculate_correlation(primary_symbol, hedge_symbol)

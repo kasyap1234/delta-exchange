@@ -175,8 +175,9 @@ class DeltaExchangeClient:
             'User-Agent': 'delta-trading-bot/1.0'
         })
         
-        # Cache for product IDs
+        # Cache for product IDs and info
         self._products_cache: Dict[str, int] = {}
+        self._products_info: Dict[str, Dict] = {}
         
         log.info(f"Delta Exchange client initialized for {self.base_url}")
     
@@ -286,7 +287,9 @@ class DeltaExchangeClient:
         
         # Update cache
         for product in products:
-            self._products_cache[product['symbol']] = product['id']
+            symbol = product['symbol']
+            self._products_cache[symbol] = product['id']
+            self._products_info[symbol] = product
         
         return products
     
@@ -452,29 +455,51 @@ class DeltaExchangeClient:
                     order_type: OrderType = OrderType.MARKET,
                     limit_price: Optional[float] = None,
                     reduce_only: bool = False,
-                    client_order_id: Optional[str] = None) -> Order:
+                    client_order_id: Optional[str] = None,
+                    size_in_contracts: bool = False) -> Order:
         """
         Place a new order.
         
         Args:
             symbol: Product symbol
             side: Buy or Sell
-            size: Order size (quantity)
+            size: Order size (asset amount OR contracts if size_in_contracts=True)
             order_type: Market or Limit
             limit_price: Price for limit orders
             reduce_only: Whether order should only reduce position
             client_order_id: Optional custom order ID
+            size_in_contracts: If True, size is already in contracts (skip conversion)
             
         Returns:
             Created Order object
         """
         product_id = self.get_product_id(symbol)
         
+        if size_in_contracts:
+            # Size is already in contracts (e.g., from get_positions)
+            num_contracts = int(round(size))
+        else:
+            # Convert asset size to number of contracts
+            if not self._products_info:
+                self.get_products()
+            product_info = self._products_info.get(symbol, {})
+            contract_value = float(product_info.get('contract_value', 1.0))
+            
+            # Example: 0.001 BTC / 0.001 BTC per contract = 1 contract
+            num_contracts = size / contract_value
+            num_contracts = max(1, int(round(num_contracts)))
+            
+            log.info(f"TRADE: Converting {size:.6f} {symbol} -> {num_contracts} contracts (contract_value={contract_value})")
+        
+        # Final safety check
+        if num_contracts < 1:
+            raise ValueError(f"Invalid contract count for {symbol}: {num_contracts}")
+        
         order_data = {
             'product_id': product_id,
             'side': side.value,
             'order_type': order_type.value,
-            'size': size
+            'size': num_contracts
         }
         
         if order_type == OrderType.LIMIT and limit_price:
@@ -486,7 +511,7 @@ class DeltaExchangeClient:
         if client_order_id:
             order_data['client_order_id'] = client_order_id
         
-        log.info(f"TRADE: Placing {side.value} order for {size} {symbol}")
+        log.info(f"TRADE: Placing {side.value} order for {num_contracts} contracts of {symbol}")
         
         response = self._request('POST', '/v2/orders', data=order_data)
         order = Order.from_api_response(response.get('result', {}))
@@ -561,7 +586,8 @@ class DeltaExchangeClient:
                     side=close_side,
                     size=close_size,
                     order_type=OrderType.MARKET,
-                    reduce_only=True
+                    reduce_only=True,
+                    size_in_contracts=True  # Position size is already in contracts
                 )
         
         log.warning(f"No open position found for {symbol}")

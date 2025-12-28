@@ -155,7 +155,7 @@ class TradingConfig:
     # Candle settings
     candle_interval: str = field(default_factory=lambda: 
         os.getenv("CANDLE_INTERVAL", "15m"))
-    candle_count: int = 100  # Number of candles to fetch for analysis
+    candle_count: int = 300  # Number of candles to fetch for analysis
     
     # Indicator settings (RSI) - Slightly relaxed for more signals
     rsi_period: int = 14
@@ -176,7 +176,7 @@ class TradingConfig:
     ema_long: int = 21
     
     # Minimum indicators that must agree for a trade (3 = 75% agreement)
-    min_signal_agreement: int = 3  # Increased for higher quality signals
+    min_signal_agreement: int = 2  # Reduced to 2 for more frequent trading on Testnet
 
 
 @dataclass

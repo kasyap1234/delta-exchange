@@ -196,6 +196,8 @@ class CorrelatedHedgingStrategy(BaseStrategy):
                              hedge_ratio: float) -> Optional[StrategySignal]:
         """Create an entry signal with hedge if applicable."""
         
+        log.info(f"[CORR_HEDGE] _create_entry_signal called for {symbol}")
+        
         # DEBUG: Log indicator values
         log.info(f"[HEDGE] {symbol} Analysis:")
         log.info(f"  Combined Signal: {ta_result.combined_signal.value}")
@@ -204,18 +206,48 @@ class CorrelatedHedgingStrategy(BaseStrategy):
         for ind in ta_result.indicators:
             log.info(f"    - {ind.name}: {ind.signal.value} (value={ind.value:.2f})")
         
+        # ===== CRITICAL: Check higher timeframe trend alignment =====
+        # Fetch 4h candles to determine the dominant trend
+        try:
+            higher_tf_candles = self.client.get_candles(
+                symbol=symbol, 
+                resolution='4h'
+            )
+            if higher_tf_candles and len(higher_tf_candles) >= 20:
+                closes = np.array([c.close for c in higher_tf_candles])
+                # Use 20 EMA for trend direction
+                ema_20 = self.analyzer._ema(closes, 20)
+                current_price_htf = closes[-1]
+                higher_tf_trend = "bullish" if current_price_htf > ema_20[-1] else "bearish"
+                log.info(f"  4H Trend Check: Price=${current_price_htf:.2f}, EMA20=${ema_20[-1]:.2f} → {higher_tf_trend.upper()}")
+            else:
+                higher_tf_trend = "unknown"
+                log.warning(f"  4H Trend Check: Insufficient candles ({len(higher_tf_candles) if higher_tf_candles else 0})")
+        except Exception as e:
+            log.warning(f"Could not fetch higher TF for {symbol}: {e}")
+            higher_tf_trend = "unknown"
+        
         # Determine direction based on TA
         if ta_result.combined_signal in [Signal.BUY, Signal.STRONG_BUY]:
             direction = SignalDirection.LONG
             hedge_direction = SignalDirection.SHORT
-            log.info(f"  → ENTRY SIGNAL: LONG (BUY signal)")
+            signal_trend = "bullish"
+            log.info(f"  → Entry Signal: LONG (BUY)")
         elif ta_result.combined_signal in [Signal.SELL, Signal.STRONG_SELL]:
             direction = SignalDirection.SHORT
             hedge_direction = SignalDirection.LONG
-            log.info(f"  → ENTRY SIGNAL: SHORT (SELL signal)")
+            signal_trend = "bearish"
+            log.info(f"  → Entry Signal: SHORT (SELL)")
         else:
-            log.info(f"  → NO SIGNAL: Combined signal is {ta_result.combined_signal.value} (need BUY/SELL)")
-            return None  # No actionable signal
+            log.info(f"  → NO SIGNAL: Combined signal is {ta_result.combined_signal.value}")
+            return None
+        
+        # ===== CRITICAL: Reject counter-trend trades =====
+        if higher_tf_trend != "unknown" and higher_tf_trend != signal_trend:
+            log.info(f"  → REJECTED: Signal ({signal_trend}) conflicts with 4h trend ({higher_tf_trend})")
+            return None
+        
+        log.info(f"  → APPROVED: Signal aligned with 4h trend")
         
         # Get current price
         try:
@@ -225,8 +257,9 @@ class CorrelatedHedgingStrategy(BaseStrategy):
             if current_price <= 0:
                 return None
             
-            # Calculate position size
-            position_size = capital / current_price
+            # Calculate position size with leverage
+            leverage = getattr(settings.trading, 'leverage', 10)
+            position_size = (capital * leverage) / current_price
             
             # Calculate hedge size
             hedge_size = None
@@ -235,7 +268,7 @@ class CorrelatedHedgingStrategy(BaseStrategy):
                 try:
                     hedge_ticker = self.client.get_ticker(hedge_symbol)
                     hedge_price = float(hedge_ticker.get('mark_price', 0))
-                    hedge_value = capital * hedge_ratio
+                    hedge_value = capital * hedge_ratio * leverage  # Apply leverage to hedge too
                     hedge_size = hedge_value / hedge_price
                 except Exception as e:
                     log.warning(f"Could not get hedge price: {e}")
@@ -326,8 +359,21 @@ class CorrelatedHedgingStrategy(BaseStrategy):
                 
                 # Simple SL/TP check
                 entry = hedged_pos.primary_entry_price
-                sl_pct = getattr(settings.trading, 'stop_loss_pct', 0.02)
-                tp_pct = getattr(settings.trading, 'take_profit_pct', 0.04)
+                sl_pct = getattr(settings.trading, 'stop_loss_pct', 0.05)
+                tp_pct = getattr(settings.trading, 'take_profit_pct', 0.10)
+                
+                # Calculate thresholds
+                if hedged_pos.primary_side == 'long':
+                    sl_price = entry * (1 - sl_pct)
+                    tp_price = entry * (1 + tp_pct)
+                else:
+                    sl_price = entry * (1 + sl_pct)
+                    tp_price = entry * (1 - tp_pct)
+                
+                # Log position status every check
+                log.info(f"[EXIT CHECK] {symbol} {hedged_pos.primary_side.upper()}: "
+                        f"Entry=${entry:.2f}, Current=${current_price:.2f}, "
+                        f"SL=${sl_price:.2f}, TP=${tp_price:.2f}")
                 
                 if hedged_pos.primary_side == 'long':
                     if current_price <= entry * (1 - sl_pct):
@@ -345,6 +391,7 @@ class CorrelatedHedgingStrategy(BaseStrategy):
                         exit_reason = "Take-profit hit"
                 
                 if should_exit:
+                    log.info(f"[EXIT TRIGGERED] {symbol}: {exit_reason}")
                     direction = SignalDirection.CLOSE_LONG if hedged_pos.primary_side == 'long' \
                                else SignalDirection.CLOSE_SHORT
                     

@@ -69,9 +69,9 @@ class CorrelationCalculator:
     
     # Default hedge pairs
     DEFAULT_PAIRS = {
-        'BTCUSDT': 'ETHUSDT',
-        'ETHUSDT': 'BTCUSDT',
-        'SOLUSDT': 'ETHUSDT',
+        'BTCUSD': 'ETHUSD',
+        'ETHUSD': 'BTCUSD',
+        'SOLUSD': 'ETHUSD',
     }
     
     def __init__(self, client: DeltaExchangeClient,
