@@ -12,6 +12,7 @@ Usage:
     python main_v2.py                    # Run with default settings
     python main_v2.py --testnet          # Use testnet environment
     python main_v2.py --dry-run          # Log trades without executing
+    python main_v2.py --paper-trade      # Paper trade with P&L tracking
     python main_v2.py --once             # Run analysis once and exit
     python main_v2.py --interval 300     # Custom interval in seconds
     python main_v2.py --legacy           # Use legacy single-strategy mode
@@ -33,7 +34,8 @@ from apscheduler.triggers.interval import IntervalTrigger
 from config.settings import settings
 from src.delta_client import DeltaExchangeClient
 from src.strategies.strategy_manager import StrategyManager, TradingState
-from src.strategies.base_strategy import StrategyType
+from src.strategies.base_strategy import StrategyType, SignalDirection
+from src.paper_trader import PaperTradingSimulator
 from utils.logger import log
 
 
@@ -53,15 +55,18 @@ class MultiStrategyBot:
     - Performance tracking
     """
     
-    def __init__(self, dry_run: bool = False, interval_seconds: int = 300):
+    def __init__(self, dry_run: bool = False, paper_trade: bool = False, 
+                 interval_seconds: int = 300):
         """
         Initialize the multi-strategy bot.
         
         Args:
             dry_run: If True, log trades but don't execute
+            paper_trade: If True, simulate trades with P&L tracking
             interval_seconds: Interval between analysis cycles
         """
         self.dry_run = dry_run
+        self.paper_trade = paper_trade
         self.interval_seconds = interval_seconds
         self.running = False
         
@@ -69,6 +74,7 @@ class MultiStrategyBot:
         self.client: Optional[DeltaExchangeClient] = None
         self.strategy_manager: Optional[StrategyManager] = None
         self.scheduler: Optional[BlockingScheduler] = None
+        self.paper_simulator: Optional[PaperTradingSimulator] = None
         
         # Statistics
         self.cycle_count = 0
@@ -97,6 +103,30 @@ class MultiStrategyBot:
         log.info(f"Base URL: {settings.delta.base_url}")
         log.info(f"Trading Pairs: {settings.trading.trading_pairs}")
         log.info(f"Dry Run: {self.dry_run}")
+        log.info(f"Paper Trade: {self.paper_trade}")
+        
+        # Initialize paper trading simulator if enabled
+        if self.paper_trade:
+            # Get wallet balance for initial virtual balance
+            try:
+                wallet = self.client.get_wallet_balance() if hasattr(self, 'client') and self.client else None
+                initial_balance = 200.0  # Default
+                if wallet:
+                    for bal in wallet:
+                        if bal.get('asset_symbol') == 'USDT':
+                            initial_balance = float(bal.get('available_balance', 200))
+                            break
+            except:
+                initial_balance = 200.0
+            
+            # Get leverage from settings
+            leverage = getattr(settings.trading, 'leverage', 5)
+            
+            self.paper_simulator = PaperTradingSimulator(
+                initial_balance=initial_balance,
+                leverage=leverage
+            )
+            log.info(f"Paper Trading enabled with ${initial_balance:.2f} @ {leverage}x leverage")
         
         # Log strategy allocation
         log.info("-" * 40)
@@ -158,6 +188,50 @@ class MultiStrategyBot:
         try:
             # Run the strategy manager cycle
             signals = self.strategy_manager.run_cycle()
+            
+            # Paper Trading: Process entries and exits
+            if self.paper_trade and self.paper_simulator:
+                # Get current prices for all trading pairs
+                prices = {}
+                current_signals = {}
+                for pair in settings.trading.trading_pairs:
+                    try:
+                        ticker = self.client.get_ticker(pair)
+                        prices[pair] = float(ticker.get('mark_price', 0))
+                    except:
+                        pass
+                
+                # Update prices and check exit conditions
+                self.paper_simulator.update_prices(prices)
+                
+                # Build current signals map for reversal detection
+                for signal in signals:
+                    current_signals[signal.symbol] = signal.direction.value
+                
+                # Check and execute exits (stop-loss, take-profit, reversal)
+                self.paper_simulator.process_exits(prices, current_signals)
+                
+                # Process new entries
+                for signal in signals:
+                    # Skip if already have position
+                    if self.paper_simulator.has_position(signal.symbol):
+                        continue
+                    
+                    # Only process entry signals (not exit)
+                    if signal.direction in [SignalDirection.LONG, SignalDirection.SHORT]:
+                        side = 'long' if signal.direction == SignalDirection.LONG else 'short'
+                        self.paper_simulator.open_position(
+                            symbol=signal.symbol,
+                            side=side,
+                            size=signal.position_size,
+                            entry_price=signal.entry_price,
+                            stop_loss=signal.stop_loss if signal.stop_loss else signal.entry_price * 0.98,
+                            take_profit=signal.take_profit if signal.take_profit else signal.entry_price * 1.04,
+                            strategy=signal.strategy_type.value
+                        )
+                
+                # Display current positions and P&L
+                self.paper_simulator.print_positions()
             
             # Log results
             if signals:
@@ -274,6 +348,10 @@ class MultiStrategyBot:
                 log.info(f"  {strategy_name}:")
                 log.info(f"    Trades: {stats['trades']}, Win Rate: {stats['win_rate']}")
                 log.info(f"    P&L: ${stats['pnl']:.2f}, Funding: ${stats['funding']:.2f}")
+        
+        # Paper trading summary
+        if self.paper_trade and self.paper_simulator:
+            self.paper_simulator.print_summary()
 
 
 def parse_args():
@@ -289,6 +367,7 @@ Strategies:
 
 Examples:
   python main_v2.py --dry-run          # Test without executing trades
+  python main_v2.py --paper-trade      # Simulate with P&L tracking
   python main_v2.py --testnet          # Use testnet environment
   python main_v2.py --once             # Run once and exit
   python main_v2.py --interval 60      # Run every 60 seconds
@@ -330,6 +409,12 @@ Configuration:
         help='Use legacy single-strategy mode (original bot)'
     )
     
+    parser.add_argument(
+        '--paper-trade',
+        action='store_true',
+        help='Paper trade with virtual P&L tracking (includes --dry-run)'
+    )
+    
     return parser.parse_args()
 
 
@@ -351,8 +436,12 @@ def main():
         return
     
     # Create and run multi-strategy bot
+    # Paper trade implies dry-run (no real trades)
+    dry_run = args.dry_run or args.paper_trade
+    
     bot = MultiStrategyBot(
-        dry_run=args.dry_run,
+        dry_run=dry_run,
+        paper_trade=args.paper_trade,
         interval_seconds=args.interval
     )
     

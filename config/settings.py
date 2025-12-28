@@ -108,12 +108,12 @@ class EnhancedRiskConfig:
     daily_loss_limit_pct: float = field(default_factory=lambda: 
         float(os.getenv("DAILY_LOSS_LIMIT", "0.03")))  # 3%
     
-    # ATR-based stops
+    # ATR-based stops (widened for leverage trading - reduces whipsaws)
     atr_period: int = 14
     atr_stop_multiplier: float = field(default_factory=lambda: 
-        float(os.getenv("ATR_STOP_MULT", "2.0")))
+        float(os.getenv("ATR_STOP_MULT", "3.0")))  # 3x ATR (was 2x - wider stops)
     atr_trailing_multiplier: float = field(default_factory=lambda: 
-        float(os.getenv("ATR_TRAIL_MULT", "1.5")))
+        float(os.getenv("ATR_TRAIL_MULT", "2.0")))  # 2x ATR (was 1.5x - more room)
     
     # Trailing stops
     trailing_enabled: bool = field(default_factory=lambda: 
@@ -138,15 +138,19 @@ class TradingConfig:
     trading_pairs: List[str] = field(default_factory=lambda: 
         os.getenv("TRADING_PAIRS", "BTCUSDT,ETHUSDT,SOLUSDT").split(","))
     
-    # Risk management (legacy - kept for backward compatibility)
+    # Risk management - Widened stops for leverage trading
     max_capital_per_trade: float = field(default_factory=lambda: 
-        float(os.getenv("MAX_CAPITAL_PER_TRADE", "0.10")))  # 10%
+        float(os.getenv("MAX_CAPITAL_PER_TRADE", "0.25")))  # 25% (was 10%)
     stop_loss_pct: float = field(default_factory=lambda: 
-        float(os.getenv("STOP_LOSS_PCT", "0.02")))  # 2%
+        float(os.getenv("STOP_LOSS_PCT", "0.05")))  # 5% (was 2% - wider to avoid whipsaws)
     take_profit_pct: float = field(default_factory=lambda: 
-        float(os.getenv("TAKE_PROFIT_PCT", "0.04")))  # 4%
+        float(os.getenv("TAKE_PROFIT_PCT", "0.10")))  # 10% (was 4% - 2:1 R:R maintained)
     max_open_positions: int = field(default_factory=lambda: 
         int(os.getenv("MAX_OPEN_POSITIONS", "3")))
+    
+    # Leverage setting (Delta Exchange supports up to 100x)
+    leverage: int = field(default_factory=lambda: 
+        int(os.getenv("LEVERAGE", "10")))  # 10x leverage (increased for higher returns)
     
     # Candle settings
     candle_interval: str = field(default_factory=lambda: 
@@ -171,8 +175,8 @@ class TradingConfig:
     ema_short: int = 9
     ema_long: int = 21
     
-    # Minimum indicators that must agree for a trade (2 = 50% agreement)
-    min_signal_agreement: int = 2  # Was 3 (relaxed for more signals)
+    # Minimum indicators that must agree for a trade (3 = 75% agreement)
+    min_signal_agreement: int = 3  # Increased for higher quality signals
 
 
 @dataclass

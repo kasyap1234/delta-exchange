@@ -552,6 +552,98 @@ class TechnicalAnalyzer:
             # Trail above the lowest price
             return lowest_since_entry + trail_distance
     
+    def calculate_adx(self, high: np.ndarray, low: np.ndarray, 
+                      close: np.ndarray, period: int = 14) -> float:
+        """
+        Calculate Average Directional Index (ADX) for trend strength.
+        
+        ADX measures the strength of a trend (not direction):
+        - ADX < 20: Weak trend / choppy market (avoid trading)
+        - ADX 20-25: Trend developing
+        - ADX 25-50: Strong trend (good for trading)
+        - ADX > 50: Very strong trend
+        
+        Args:
+            high: Array of high prices
+            low: Array of low prices
+            close: Array of close prices
+            period: ADX period (default 14)
+            
+        Returns:
+            Current ADX value (0-100)
+        """
+        if len(close) < period * 2:
+            return 0.0
+        
+        if TALIB_AVAILABLE:
+            try:
+                adx = talib.ADX(high, low, close, timeperiod=period)
+                return float(adx[-1]) if not np.isnan(adx[-1]) else 0.0
+            except:
+                pass
+        
+        # Fallback ADX calculation
+        plus_dm = np.zeros(len(close))
+        minus_dm = np.zeros(len(close))
+        tr = np.zeros(len(close))
+        
+        for i in range(1, len(close)):
+            high_diff = high[i] - high[i-1]
+            low_diff = low[i-1] - low[i]
+            
+            if high_diff > low_diff and high_diff > 0:
+                plus_dm[i] = high_diff
+            else:
+                plus_dm[i] = 0
+                
+            if low_diff > high_diff and low_diff > 0:
+                minus_dm[i] = low_diff
+            else:
+                minus_dm[i] = 0
+            
+            hl = high[i] - low[i]
+            hc = abs(high[i] - close[i-1])
+            lc = abs(low[i] - close[i-1])
+            tr[i] = max(hl, hc, lc)
+        
+        # Smooth the values
+        atr = self._smooth_data(tr, period)
+        plus_di = 100 * self._smooth_data(plus_dm, period) / (atr + 1e-10)
+        minus_di = 100 * self._smooth_data(minus_dm, period) / (atr + 1e-10)
+        
+        # Calculate DX and ADX
+        dx = 100 * np.abs(plus_di - minus_di) / (plus_di + minus_di + 1e-10)
+        adx = self._smooth_data(dx, period)
+        
+        return float(adx[-1]) if len(adx) > 0 else 0.0
+    
+    def _smooth_data(self, data: np.ndarray, period: int) -> np.ndarray:
+        """Smooth data using Wilder's smoothing method."""
+        result = np.zeros(len(data))
+        result[period] = np.sum(data[1:period+1])
+        
+        for i in range(period + 1, len(data)):
+            result[i] = result[i-1] - (result[i-1] / period) + data[i]
+        
+        return result
+    
+    def is_trending(self, high: np.ndarray, low: np.ndarray, 
+                    close: np.ndarray, min_adx: float = 25.0) -> Tuple[bool, float]:
+        """
+        Check if market is trending (suitable for trend-following trades).
+        
+        Args:
+            high: Array of high prices
+            low: Array of low prices
+            close: Array of close prices
+            min_adx: Minimum ADX value to consider market trending (default 25)
+            
+        Returns:
+            Tuple of (is_trending, adx_value)
+        """
+        adx = self.calculate_adx(high, low, close)
+        return (adx >= min_adx, adx)
+    
     def calculate_volume_signal(self, volume: np.ndarray, 
                                  close: np.ndarray,
                                  period: int = 20) -> IndicatorResult:

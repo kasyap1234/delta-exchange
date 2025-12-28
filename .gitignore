@@ -1,1 +1,35 @@
-.env 
+# Environment files
+.env
+.env.example
+
+# Virtual environment directories
+venv/
+.venv/
+env/
+
+# Log files and directories
+logs/
+*.log
+
+# Python cache and bytecode files
+__pycache__/
+*.py[cod]
+
+# IDE-specific files
+.vscode/
+.idea/
+
+# Test cache
+.pytest_cache/
+
+# Build and distribution directories
+build/
+dist/
+*.egg-info/
+
+# macOS-specific files
+.DS_Store
+
+# Other common files
+*.swp
+*.swo
