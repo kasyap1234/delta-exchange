@@ -1,0 +1,322 @@
+/Users/kasyap/Documents/projects/delta-exchange/venv/lib/python3.9/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+[32m2025-12-28 17:45:30[0m | [1mINFO    [0m | [36mutils.logger[0m:[36msetup_logger[0m:[36m49[0m - [1mLogger initialized[0m
+[32m2025-12-28 17:45:30[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m84[0m - [1m======================================================================[0m
+[32m2025-12-28 17:45:30[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m85[0m - [1mDelta Exchange Multi-Strategy Trading Bot v2.0[0m
+[32m2025-12-28 17:45:30[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m86[0m - [1m======================================================================[0m
+[32m2025-12-28 17:45:30[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m95[0m - [1mEnvironment: testnet[0m
+[32m2025-12-28 17:45:30[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m96[0m - [1mRegion: india[0m
+[32m2025-12-28 17:45:30[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m97[0m - [1mBase URL: https://cdn-ind.testnet.deltaex.org[0m
+[32m2025-12-28 17:45:30[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m98[0m - [1mTrading Pairs: ['BTCUSD', 'ETHUSD', 'SOLUSD'][0m
+[32m2025-12-28 17:45:30[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m99[0m - [1mDry Run: True[0m
+[32m2025-12-28 17:45:30[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m102[0m - [1m----------------------------------------[0m
+[32m2025-12-28 17:45:30[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m103[0m - [1mStrategy Allocation:[0m
+[32m2025-12-28 17:45:30[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m104[0m - [1m  Tier 1 (Funding Arbitrage): 40%[0m
+[32m2025-12-28 17:45:30[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m105[0m - [1m  Tier 2 (Correlated Hedging): 40%[0m
+[32m2025-12-28 17:45:30[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m106[0m - [1m  Tier 3 (Multi-Timeframe): 20%[0m
+[32m2025-12-28 17:45:30[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m109[0m - [1m----------------------------------------[0m
+[32m2025-12-28 17:45:30[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m110[0m - [1mRisk Management:[0m
+[32m2025-12-28 17:45:30[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m111[0m - [1m  Daily Loss Limit: 3.0%[0m
+[32m2025-12-28 17:45:30[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m112[0m - [1m  ATR Stop Multiplier: 2.0x[0m
+[32m2025-12-28 17:45:30[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m113[0m - [1m  Trailing Stops: True[0m
+[32m2025-12-28 17:45:30[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m114[0m - [1m  Profit Ladder: True[0m
+[32m2025-12-28 17:45:30[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m117[0m - [1m----------------------------------------[0m
+[32m2025-12-28 17:45:30[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m118[0m - [1mInitializing Delta Exchange client...[0m
+[32m2025-12-28 17:45:30[0m | [1mINFO    [0m | [36msrc.delta_client[0m:[36m__init__[0m:[36m167[0m - [1mHybrid mode: Market data from https://api.india.delta.exchange, Trading on testnet[0m
+[32m2025-12-28 17:45:30[0m | [1mINFO    [0m | [36msrc.delta_client[0m:[36m__init__[0m:[36m181[0m - [1mDelta Exchange client initialized for https://cdn-ind.testnet.deltaex.org[0m
+[32m2025-12-28 17:45:30[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m122[0m - [1mTesting API connection...[0m
+[32m2025-12-28 17:45:31[0m | [1mINFO    [0m | [36msrc.delta_client[0m:[36mtest_connection[0m:[36m580[0m - [1mPublic API OK - 485 products available[0m
+[32m2025-12-28 17:45:31[0m | [1mINFO    [0m | [36msrc.delta_client[0m:[36mtest_connection[0m:[36m584[0m - [1mPrivate API OK - Wallet balance retrieved[0m
+[32m2025-12-28 17:45:31[0m | [33m[1mWARNING [0m | [36msrc.technical_analysis[0m:[36m__init__[0m:[36m73[0m - [33m[1mTA-Lib not available, using fallback implementations[0m
+[32m2025-12-28 17:45:31[0m | [33m[1mWARNING [0m | [36msrc.technical_analysis[0m:[36m__init__[0m:[36m73[0m - [33m[1mTA-Lib not available, using fallback implementations[0m
+[32m2025-12-28 17:45:31[0m | [33m[1mWARNING [0m | [36msrc.technical_analysis[0m:[36m__init__[0m:[36m73[0m - [33m[1mTA-Lib not available, using fallback implementations[0m
+[32m2025-12-28 17:45:31[0m | [1mINFO    [0m | [36msrc.strategies.strategy_manager[0m:[36m__init__[0m:[36m107[0m - [1mStrategyManager initialized with 3 strategies[0m
+[32m2025-12-28 17:45:31[0m | [1mINFO    [0m | [36msrc.strategies.strategy_manager[0m:[36m__init__[0m:[36m108[0m - [1mAllocation: funding_arbitrage: 40%, correlated_hedging: 40%, multi_timeframe: 20%[0m
+[32m2025-12-28 17:45:31[0m | [1mINFO    [0m | [36msrc.strategies.strategy_manager[0m:[36m__init__[0m:[36m109[0m - [1mDaily loss limit: 3.0%[0m
+[32m2025-12-28 17:45:31[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m142[0m - [1m======================================================================[0m
+[32m2025-12-28 17:45:31[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m143[0m - [1mInitialization complete![0m
+[32m2025-12-28 17:45:31[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m144[0m - [1m======================================================================[0m
+[32m2025-12-28 17:45:31[0m | [1mINFO    [0m | [36m__main__[0m:[36mrun_trading_cycle[0m:[36m154[0m - [1m--------------------------------------------------[0m
+[32m2025-12-28 17:45:31[0m | [1mINFO    [0m | [36m__main__[0m:[36mrun_trading_cycle[0m:[36m155[0m - [1mTrading Cycle #1 - 2025-12-28 17:45:31[0m
+[32m2025-12-28 17:45:31[0m | [1mINFO    [0m | [36m__main__[0m:[36mrun_trading_cycle[0m:[36m156[0m - [1m--------------------------------------------------[0m
+[32m2025-12-28 17:45:31[0m | [1mINFO    [0m | [36msrc.strategies.strategy_manager[0m:[36m_update_daily_stats[0m:[36m253[0m - [1mNew trading day started. Balance: $200.00[0m
+[32m2025-12-28 17:45:32[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m200[0m - [1m[HEDGE] BTCUSD Analysis:[0m
+[32m2025-12-28 17:45:32[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m201[0m - [1m  Combined Signal: hold[0m
+[32m2025-12-28 17:45:32[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m202[0m - [1m  Confidence: 0.00[0m
+[32m2025-12-28 17:45:32[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m203[0m - [1m  Signal Strength: 0/4 indicators aligned[0m
+[32m2025-12-28 17:45:32[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m205[0m - [1m    - RSI: 0 (value=47.65)[0m
+[32m2025-12-28 17:45:32[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m205[0m - [1m    - MACD: 1 (value=6.13)[0m
+[32m2025-12-28 17:45:32[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m205[0m - [1m    - Bollinger Bands: 0 (value=0.48)[0m
+[32m2025-12-28 17:45:32[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m205[0m - [1m    - EMA Crossover: -1 (value=-16.20)[0m
+[32m2025-12-28 17:45:32[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m217[0m - [1m  → NO SIGNAL: Combined signal is hold (need BUY/SELL)[0m
+[32m2025-12-28 17:45:33[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m200[0m - [1m[HEDGE] ETHUSD Analysis:[0m
+[32m2025-12-28 17:45:33[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m201[0m - [1m  Combined Signal: buy[0m
+[32m2025-12-28 17:45:33[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m202[0m - [1m  Confidence: 0.50[0m
+[32m2025-12-28 17:45:33[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m203[0m - [1m  Signal Strength: 2/4 indicators aligned[0m
+[32m2025-12-28 17:45:33[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m205[0m - [1m    - RSI: 0 (value=48.86)[0m
+[32m2025-12-28 17:45:33[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m205[0m - [1m    - MACD: 1 (value=0.33)[0m
+[32m2025-12-28 17:45:33[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m205[0m - [1m    - Bollinger Bands: 0 (value=0.51)[0m
+[32m2025-12-28 17:45:33[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m205[0m - [1m    - EMA Crossover: 1 (value=0.57)[0m
+[32m2025-12-28 17:45:33[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m211[0m - [1m  → ENTRY SIGNAL: LONG (BUY signal)[0m
+[32m2025-12-28 17:45:33[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m200[0m - [1m[HEDGE] SOLUSD Analysis:[0m
+[32m2025-12-28 17:45:33[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m201[0m - [1m  Combined Signal: hold[0m
+[32m2025-12-28 17:45:33[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m202[0m - [1m  Confidence: 0.00[0m
+[32m2025-12-28 17:45:33[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m203[0m - [1m  Signal Strength: 0/4 indicators aligned[0m
+[32m2025-12-28 17:45:33[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m205[0m - [1m    - RSI: 0 (value=43.13)[0m
+[32m2025-12-28 17:45:33[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m205[0m - [1m    - MACD: 1 (value=0.01)[0m
+[32m2025-12-28 17:45:33[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m205[0m - [1m    - Bollinger Bands: 0 (value=0.29)[0m
+[32m2025-12-28 17:45:33[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m205[0m - [1m    - EMA Crossover: -1 (value=-0.10)[0m
+[32m2025-12-28 17:45:33[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m217[0m - [1m  → NO SIGNAL: Combined signal is hold (need BUY/SELL)[0m
+[32m2025-12-28 17:45:33[0m | [1mINFO    [0m | [36msrc.strategies.strategy_manager[0m:[36mrun_cycle[0m:[36m210[0m - [1mSignal from correlated_hedging: long ETHUSD (confidence: 50%)[0m
+[32m2025-12-28 17:45:33[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m772[0m - [1m[MTF] BTCUSD Analysis:[0m
+[32m2025-12-28 17:45:33[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m773[0m - [1m  Higher TF (4h) Trend: NEUTRAL[0m
+[32m2025-12-28 17:45:33[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m774[0m - [1m  Entry TF (15m) Signal: hold[0m
+[32m2025-12-28 17:45:33[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m775[0m - [1m  Entry Confidence: 0.00[0m
+[32m2025-12-28 17:45:33[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m776[0m - [1m  Aligned: False[0m
+[32m2025-12-28 17:45:33[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m777[0m - [1m  Should Trade: False[0m
+[32m2025-12-28 17:45:33[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m780[0m - [1m  → NO TRADE: Trend (neutral) not aligned with entry signal (hold)[0m
+[32m2025-12-28 17:45:33[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m789[0m - [1m    - RSI: 0[0m
+[32m2025-12-28 17:45:33[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m789[0m - [1m    - MACD: 1[0m
+[32m2025-12-28 17:45:33[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m789[0m - [1m    - Bollinger Bands: 0[0m
+[32m2025-12-28 17:45:33[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m789[0m - [1m    - EMA Crossover: -1[0m
+[32m2025-12-28 17:45:34[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m772[0m - [1m[MTF] ETHUSD Analysis:[0m
+[32m2025-12-28 17:45:34[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m773[0m - [1m  Higher TF (4h) Trend: NEUTRAL[0m
+[32m2025-12-28 17:45:34[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m774[0m - [1m  Entry TF (15m) Signal: buy[0m
+[32m2025-12-28 17:45:34[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m775[0m - [1m  Entry Confidence: 0.50[0m
+[32m2025-12-28 17:45:34[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m776[0m - [1m  Aligned: False[0m
+[32m2025-12-28 17:45:34[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m777[0m - [1m  Should Trade: False[0m
+[32m2025-12-28 17:45:34[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m780[0m - [1m  → NO TRADE: Trend (neutral) not aligned with entry signal (buy)[0m
+[32m2025-12-28 17:45:34[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m789[0m - [1m    - RSI: 0[0m
+[32m2025-12-28 17:45:34[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m789[0m - [1m    - MACD: 1[0m
+[32m2025-12-28 17:45:34[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m789[0m - [1m    - Bollinger Bands: 0[0m
+[32m2025-12-28 17:45:34[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m789[0m - [1m    - EMA Crossover: 1[0m
+[32m2025-12-28 17:45:34[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m772[0m - [1m[MTF] SOLUSD Analysis:[0m
+[32m2025-12-28 17:45:34[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m773[0m - [1m  Higher TF (4h) Trend: NEUTRAL[0m
+[32m2025-12-28 17:45:34[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m774[0m - [1m  Entry TF (15m) Signal: hold[0m
+[32m2025-12-28 17:45:34[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m775[0m - [1m  Entry Confidence: 0.00[0m
+[32m2025-12-28 17:45:34[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m776[0m - [1m  Aligned: False[0m
+[32m2025-12-28 17:45:34[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m777[0m - [1m  Should Trade: False[0m
+[32m2025-12-28 17:45:34[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m780[0m - [1m  → NO TRADE: Trend (neutral) not aligned with entry signal (hold)[0m
+[32m2025-12-28 17:45:34[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m789[0m - [1m    - RSI: 0[0m
+[32m2025-12-28 17:45:34[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m789[0m - [1m    - MACD: 1[0m
+[32m2025-12-28 17:45:34[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m789[0m - [1m    - Bollinger Bands: 0[0m
+[32m2025-12-28 17:45:34[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m789[0m - [1m    - EMA Crossover: -1[0m
+[32m2025-12-28 17:45:34[0m | [1mINFO    [0m | [36msrc.strategies.strategy_manager[0m:[36m_execute_signals[0m:[36m277[0m - [1mExecuting: long 0.009069 ETHUSD @ 2940.43[0m
+[32m2025-12-28 17:45:34[0m | [33m[1mWARNING [0m | [36msrc.hedging.hedge_manager[0m:[36mcreate_hedged_position[0m:[36m161[0m - [33m[1mNo hedge pair configured for ETHUSD[0m
+[32m2025-12-28 17:45:34[0m | [1mINFO    [0m | [36m__main__[0m:[36mrun_trading_cycle[0m:[36m164[0m - [1mGenerated 1 signals[0m
+[32m2025-12-28 17:45:34[0m | [1mINFO    [0m | [36m__main__[0m:[36mrun_trading_cycle[0m:[36m166[0m - [1m  correlated_hedging: long ETHUSD @ 2940.43[0m
+[32m2025-12-28 17:45:34[0m | [1mINFO    [0m | [36m__main__[0m:[36mrun_trading_cycle[0m:[36m173[0m - [1mTrading State: active[0m
+[32m2025-12-28 17:45:34[0m | [1mINFO    [0m | [36m__main__[0m:[36mrun_trading_cycle[0m:[36m181[0m - [1mCycle completed in 2.99s[0m
+[32m2025-12-28 17:45:34[0m | [1mINFO    [0m | [36m__main__[0m:[36mrun_continuous[0m:[36m216[0m - [1mStarting scheduler with 60s interval[0m
+[32m2025-12-28 17:45:34[0m | [1mINFO    [0m | [36m__main__[0m:[36mrun_continuous[0m:[36m228[0m - [1mBot is running. Press Ctrl+C to stop.[0m
+[32m2025-12-28 17:45:34[0m | [1mINFO    [0m | [36m__main__[0m:[36mrun_continuous[0m:[36m229[0m - [1m======================================================================[0m
+[32m2025-12-28 17:46:34[0m | [1mINFO    [0m | [36m__main__[0m:[36mrun_trading_cycle[0m:[36m154[0m - [1m--------------------------------------------------[0m
+[32m2025-12-28 17:46:34[0m | [1mINFO    [0m | [36m__main__[0m:[36mrun_trading_cycle[0m:[36m155[0m - [1mTrading Cycle #2 - 2025-12-28 17:46:34[0m
+[32m2025-12-28 17:46:34[0m | [1mINFO    [0m | [36m__main__[0m:[36mrun_trading_cycle[0m:[36m156[0m - [1m--------------------------------------------------[0m
+[32m2025-12-28 17:46:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m200[0m - [1m[HEDGE] BTCUSD Analysis:[0m
+[32m2025-12-28 17:46:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m201[0m - [1m  Combined Signal: hold[0m
+[32m2025-12-28 17:46:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m202[0m - [1m  Confidence: 0.00[0m
+[32m2025-12-28 17:46:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m203[0m - [1m  Signal Strength: 0/4 indicators aligned[0m
+[32m2025-12-28 17:46:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m205[0m - [1m    - RSI: 0 (value=47.65)[0m
+[32m2025-12-28 17:46:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m205[0m - [1m    - MACD: 1 (value=6.12)[0m
+[32m2025-12-28 17:46:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m205[0m - [1m    - Bollinger Bands: 0 (value=0.48)[0m
+[32m2025-12-28 17:46:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m205[0m - [1m    - EMA Crossover: -1 (value=-16.20)[0m
+[32m2025-12-28 17:46:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m217[0m - [1m  → NO SIGNAL: Combined signal is hold (need BUY/SELL)[0m
+[32m2025-12-28 17:46:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m200[0m - [1m[HEDGE] ETHUSD Analysis:[0m
+[32m2025-12-28 17:46:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m201[0m - [1m  Combined Signal: buy[0m
+[32m2025-12-28 17:46:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m202[0m - [1m  Confidence: 0.50[0m
+[32m2025-12-28 17:46:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m203[0m - [1m  Signal Strength: 2/4 indicators aligned[0m
+[32m2025-12-28 17:46:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m205[0m - [1m    - RSI: 0 (value=48.86)[0m
+[32m2025-12-28 17:46:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m205[0m - [1m    - MACD: 1 (value=0.33)[0m
+[32m2025-12-28 17:46:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m205[0m - [1m    - Bollinger Bands: 0 (value=0.51)[0m
+[32m2025-12-28 17:46:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m205[0m - [1m    - EMA Crossover: 1 (value=0.57)[0m
+[32m2025-12-28 17:46:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m211[0m - [1m  → ENTRY SIGNAL: LONG (BUY signal)[0m
+[32m2025-12-28 17:46:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m200[0m - [1m[HEDGE] SOLUSD Analysis:[0m
+[32m2025-12-28 17:46:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m201[0m - [1m  Combined Signal: hold[0m
+[32m2025-12-28 17:46:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m202[0m - [1m  Confidence: 0.00[0m
+[32m2025-12-28 17:46:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m203[0m - [1m  Signal Strength: 0/4 indicators aligned[0m
+[32m2025-12-28 17:46:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m205[0m - [1m    - RSI: 0 (value=43.13)[0m
+[32m2025-12-28 17:46:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m205[0m - [1m    - MACD: 1 (value=0.01)[0m
+[32m2025-12-28 17:46:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m205[0m - [1m    - Bollinger Bands: 0 (value=0.29)[0m
+[32m2025-12-28 17:46:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m205[0m - [1m    - EMA Crossover: -1 (value=-0.10)[0m
+[32m2025-12-28 17:46:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m217[0m - [1m  → NO SIGNAL: Combined signal is hold (need BUY/SELL)[0m
+[32m2025-12-28 17:46:35[0m | [1mINFO    [0m | [36msrc.strategies.strategy_manager[0m:[36mrun_cycle[0m:[36m210[0m - [1mSignal from correlated_hedging: long ETHUSD (confidence: 50%)[0m
+[32m2025-12-28 17:46:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m772[0m - [1m[MTF] BTCUSD Analysis:[0m
+[32m2025-12-28 17:46:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m773[0m - [1m  Higher TF (4h) Trend: NEUTRAL[0m
+[32m2025-12-28 17:46:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m774[0m - [1m  Entry TF (15m) Signal: hold[0m
+[32m2025-12-28 17:46:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m775[0m - [1m  Entry Confidence: 0.00[0m
+[32m2025-12-28 17:46:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m776[0m - [1m  Aligned: False[0m
+[32m2025-12-28 17:46:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m777[0m - [1m  Should Trade: False[0m
+[32m2025-12-28 17:46:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m780[0m - [1m  → NO TRADE: Trend (neutral) not aligned with entry signal (hold)[0m
+[32m2025-12-28 17:46:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m789[0m - [1m    - RSI: 0[0m
+[32m2025-12-28 17:46:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m789[0m - [1m    - MACD: 1[0m
+[32m2025-12-28 17:46:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m789[0m - [1m    - Bollinger Bands: 0[0m
+[32m2025-12-28 17:46:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m789[0m - [1m    - EMA Crossover: -1[0m
+[32m2025-12-28 17:46:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m772[0m - [1m[MTF] ETHUSD Analysis:[0m
+[32m2025-12-28 17:46:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m773[0m - [1m  Higher TF (4h) Trend: NEUTRAL[0m
+[32m2025-12-28 17:46:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m774[0m - [1m  Entry TF (15m) Signal: buy[0m
+[32m2025-12-28 17:46:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m775[0m - [1m  Entry Confidence: 0.50[0m
+[32m2025-12-28 17:46:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m776[0m - [1m  Aligned: False[0m
+[32m2025-12-28 17:46:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m777[0m - [1m  Should Trade: False[0m
+[32m2025-12-28 17:46:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m780[0m - [1m  → NO TRADE: Trend (neutral) not aligned with entry signal (buy)[0m
+[32m2025-12-28 17:46:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m789[0m - [1m    - RSI: 0[0m
+[32m2025-12-28 17:46:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m789[0m - [1m    - MACD: 1[0m
+[32m2025-12-28 17:46:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m789[0m - [1m    - Bollinger Bands: 0[0m
+[32m2025-12-28 17:46:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m789[0m - [1m    - EMA Crossover: 1[0m
+[32m2025-12-28 17:46:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m772[0m - [1m[MTF] SOLUSD Analysis:[0m
+[32m2025-12-28 17:46:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m773[0m - [1m  Higher TF (4h) Trend: NEUTRAL[0m
+[32m2025-12-28 17:46:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m774[0m - [1m  Entry TF (15m) Signal: hold[0m
+[32m2025-12-28 17:46:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m775[0m - [1m  Entry Confidence: 0.00[0m
+[32m2025-12-28 17:46:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m776[0m - [1m  Aligned: False[0m
+[32m2025-12-28 17:46:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m777[0m - [1m  Should Trade: False[0m
+[32m2025-12-28 17:46:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m780[0m - [1m  → NO TRADE: Trend (neutral) not aligned with entry signal (hold)[0m
+[32m2025-12-28 17:46:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m789[0m - [1m    - RSI: 0[0m
+[32m2025-12-28 17:46:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m789[0m - [1m    - MACD: 1[0m
+[32m2025-12-28 17:46:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m789[0m - [1m    - Bollinger Bands: 0[0m
+[32m2025-12-28 17:46:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m789[0m - [1m    - EMA Crossover: -1[0m
+[32m2025-12-28 17:46:36[0m | [1mINFO    [0m | [36msrc.strategies.strategy_manager[0m:[36m_execute_signals[0m:[36m277[0m - [1mExecuting: long 0.009068 ETHUSD @ 2940.70[0m
+[32m2025-12-28 17:46:36[0m | [33m[1mWARNING [0m | [36msrc.hedging.hedge_manager[0m:[36mcreate_hedged_position[0m:[36m161[0m - [33m[1mNo hedge pair configured for ETHUSD[0m
+[32m2025-12-28 17:46:36[0m | [1mINFO    [0m | [36m__main__[0m:[36mrun_trading_cycle[0m:[36m164[0m - [1mGenerated 1 signals[0m
+[32m2025-12-28 17:46:36[0m | [1mINFO    [0m | [36m__main__[0m:[36mrun_trading_cycle[0m:[36m166[0m - [1m  correlated_hedging: long ETHUSD @ 2940.70[0m
+[32m2025-12-28 17:46:36[0m | [1mINFO    [0m | [36m__main__[0m:[36mrun_trading_cycle[0m:[36m173[0m - [1mTrading State: active[0m
+[32m2025-12-28 17:46:36[0m | [1mINFO    [0m | [36m__main__[0m:[36mrun_trading_cycle[0m:[36m181[0m - [1mCycle completed in 2.59s[0m
+[32m2025-12-28 17:47:34[0m | [1mINFO    [0m | [36m__main__[0m:[36mrun_trading_cycle[0m:[36m154[0m - [1m--------------------------------------------------[0m
+[32m2025-12-28 17:47:34[0m | [1mINFO    [0m | [36m__main__[0m:[36mrun_trading_cycle[0m:[36m155[0m - [1mTrading Cycle #3 - 2025-12-28 17:47:34[0m
+[32m2025-12-28 17:47:34[0m | [1mINFO    [0m | [36m__main__[0m:[36mrun_trading_cycle[0m:[36m156[0m - [1m--------------------------------------------------[0m
+[32m2025-12-28 17:47:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m200[0m - [1m[HEDGE] BTCUSD Analysis:[0m
+[32m2025-12-28 17:47:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m201[0m - [1m  Combined Signal: hold[0m
+[32m2025-12-28 17:47:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m202[0m - [1m  Confidence: 0.00[0m
+[32m2025-12-28 17:47:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m203[0m - [1m  Signal Strength: 0/4 indicators aligned[0m
+[32m2025-12-28 17:47:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m205[0m - [1m    - RSI: 0 (value=47.65)[0m
+[32m2025-12-28 17:47:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m205[0m - [1m    - MACD: 1 (value=6.12)[0m
+[32m2025-12-28 17:47:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m205[0m - [1m    - Bollinger Bands: 0 (value=0.48)[0m
+[32m2025-12-28 17:47:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m205[0m - [1m    - EMA Crossover: -1 (value=-16.20)[0m
+[32m2025-12-28 17:47:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m217[0m - [1m  → NO SIGNAL: Combined signal is hold (need BUY/SELL)[0m
+[32m2025-12-28 17:47:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m200[0m - [1m[HEDGE] ETHUSD Analysis:[0m
+[32m2025-12-28 17:47:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m201[0m - [1m  Combined Signal: buy[0m
+[32m2025-12-28 17:47:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m202[0m - [1m  Confidence: 0.50[0m
+[32m2025-12-28 17:47:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m203[0m - [1m  Signal Strength: 2/4 indicators aligned[0m
+[32m2025-12-28 17:47:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m205[0m - [1m    - RSI: 0 (value=48.86)[0m
+[32m2025-12-28 17:47:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m205[0m - [1m    - MACD: 1 (value=0.33)[0m
+[32m2025-12-28 17:47:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m205[0m - [1m    - Bollinger Bands: 0 (value=0.51)[0m
+[32m2025-12-28 17:47:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m205[0m - [1m    - EMA Crossover: 1 (value=0.57)[0m
+[32m2025-12-28 17:47:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m211[0m - [1m  → ENTRY SIGNAL: LONG (BUY signal)[0m
+[32m2025-12-28 17:47:36[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m200[0m - [1m[HEDGE] SOLUSD Analysis:[0m
+[32m2025-12-28 17:47:36[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m201[0m - [1m  Combined Signal: hold[0m
+[32m2025-12-28 17:47:36[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m202[0m - [1m  Confidence: 0.00[0m
+[32m2025-12-28 17:47:36[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m203[0m - [1m  Signal Strength: 0/4 indicators aligned[0m
+[32m2025-12-28 17:47:36[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m205[0m - [1m    - RSI: 0 (value=43.14)[0m
+[32m2025-12-28 17:47:36[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m205[0m - [1m    - MACD: 1 (value=0.01)[0m
+[32m2025-12-28 17:47:36[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m205[0m - [1m    - Bollinger Bands: 0 (value=0.29)[0m
+[32m2025-12-28 17:47:36[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m205[0m - [1m    - EMA Crossover: -1 (value=-0.10)[0m
+[32m2025-12-28 17:47:36[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m217[0m - [1m  → NO SIGNAL: Combined signal is hold (need BUY/SELL)[0m
+[32m2025-12-28 17:47:36[0m | [1mINFO    [0m | [36msrc.strategies.strategy_manager[0m:[36mrun_cycle[0m:[36m210[0m - [1mSignal from correlated_hedging: long ETHUSD (confidence: 50%)[0m
+[32m2025-12-28 17:47:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m772[0m - [1m[MTF] BTCUSD Analysis:[0m
+[32m2025-12-28 17:47:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m773[0m - [1m  Higher TF (4h) Trend: NEUTRAL[0m
+[32m2025-12-28 17:47:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m774[0m - [1m  Entry TF (15m) Signal: hold[0m
+[32m2025-12-28 17:47:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m775[0m - [1m  Entry Confidence: 0.00[0m
+[32m2025-12-28 17:47:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m776[0m - [1m  Aligned: False[0m
+[32m2025-12-28 17:47:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m777[0m - [1m  Should Trade: False[0m
+[32m2025-12-28 17:47:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m780[0m - [1m  → NO TRADE: Trend (neutral) not aligned with entry signal (hold)[0m
+[32m2025-12-28 17:47:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m789[0m - [1m    - RSI: 0[0m
+[32m2025-12-28 17:47:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m789[0m - [1m    - MACD: 1[0m
+[32m2025-12-28 17:47:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m789[0m - [1m    - Bollinger Bands: 0[0m
+[32m2025-12-28 17:47:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m789[0m - [1m    - EMA Crossover: -1[0m
+[32m2025-12-28 17:47:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m772[0m - [1m[MTF] ETHUSD Analysis:[0m
+[32m2025-12-28 17:47:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m773[0m - [1m  Higher TF (4h) Trend: NEUTRAL[0m
+[32m2025-12-28 17:47:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m774[0m - [1m  Entry TF (15m) Signal: buy[0m
+[32m2025-12-28 17:47:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m775[0m - [1m  Entry Confidence: 0.50[0m
+[32m2025-12-28 17:47:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m776[0m - [1m  Aligned: False[0m
+[32m2025-12-28 17:47:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m777[0m - [1m  Should Trade: False[0m
+[32m2025-12-28 17:47:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m780[0m - [1m  → NO TRADE: Trend (neutral) not aligned with entry signal (buy)[0m
+[32m2025-12-28 17:47:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m789[0m - [1m    - RSI: 0[0m
+[32m2025-12-28 17:47:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m789[0m - [1m    - MACD: 1[0m
+[32m2025-12-28 17:47:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m789[0m - [1m    - Bollinger Bands: 0[0m
+[32m2025-12-28 17:47:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m789[0m - [1m    - EMA Crossover: 1[0m
+[32m2025-12-28 17:47:37[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m772[0m - [1m[MTF] SOLUSD Analysis:[0m
+[32m2025-12-28 17:47:37[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m773[0m - [1m  Higher TF (4h) Trend: NEUTRAL[0m
+[32m2025-12-28 17:47:37[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m774[0m - [1m  Entry TF (15m) Signal: hold[0m
+[32m2025-12-28 17:47:37[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m775[0m - [1m  Entry Confidence: 0.00[0m
+[32m2025-12-28 17:47:37[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m776[0m - [1m  Aligned: False[0m
+[32m2025-12-28 17:47:37[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m777[0m - [1m  Should Trade: False[0m
+[32m2025-12-28 17:47:37[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m780[0m - [1m  → NO TRADE: Trend (neutral) not aligned with entry signal (hold)[0m
+[32m2025-12-28 17:47:37[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m789[0m - [1m    - RSI: 0[0m
+[32m2025-12-28 17:47:37[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m789[0m - [1m    - MACD: 1[0m
+[32m2025-12-28 17:47:37[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m789[0m - [1m    - Bollinger Bands: 0[0m
+[32m2025-12-28 17:47:37[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m789[0m - [1m    - EMA Crossover: -1[0m
+[32m2025-12-28 17:47:37[0m | [1mINFO    [0m | [36msrc.strategies.strategy_manager[0m:[36m_execute_signals[0m:[36m277[0m - [1mExecuting: long 0.009069 ETHUSD @ 2940.46[0m
+[32m2025-12-28 17:47:37[0m | [33m[1mWARNING [0m | [36msrc.hedging.hedge_manager[0m:[36mcreate_hedged_position[0m:[36m161[0m - [33m[1mNo hedge pair configured for ETHUSD[0m
+[32m2025-12-28 17:47:37[0m | [1mINFO    [0m | [36m__main__[0m:[36mrun_trading_cycle[0m:[36m164[0m - [1mGenerated 1 signals[0m
+[32m2025-12-28 17:47:37[0m | [1mINFO    [0m | [36m__main__[0m:[36mrun_trading_cycle[0m:[36m166[0m - [1m  correlated_hedging: long ETHUSD @ 2940.46[0m
+[32m2025-12-28 17:47:37[0m | [1mINFO    [0m | [36m__main__[0m:[36mrun_trading_cycle[0m:[36m173[0m - [1mTrading State: active[0m
+[32m2025-12-28 17:47:37[0m | [1mINFO    [0m | [36m__main__[0m:[36mrun_trading_cycle[0m:[36m181[0m - [1mCycle completed in 2.91s[0m
+[32m2025-12-28 17:48:34[0m | [1mINFO    [0m | [36m__main__[0m:[36mrun_trading_cycle[0m:[36m154[0m - [1m--------------------------------------------------[0m
+[32m2025-12-28 17:48:34[0m | [1mINFO    [0m | [36m__main__[0m:[36mrun_trading_cycle[0m:[36m155[0m - [1mTrading Cycle #4 - 2025-12-28 17:48:34[0m
+[32m2025-12-28 17:48:34[0m | [1mINFO    [0m | [36m__main__[0m:[36mrun_trading_cycle[0m:[36m156[0m - [1m--------------------------------------------------[0m
+[32m2025-12-28 17:48:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m200[0m - [1m[HEDGE] BTCUSD Analysis:[0m
+[32m2025-12-28 17:48:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m201[0m - [1m  Combined Signal: hold[0m
+[32m2025-12-28 17:48:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m202[0m - [1m  Confidence: 0.00[0m
+[32m2025-12-28 17:48:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m203[0m - [1m  Signal Strength: 0/4 indicators aligned[0m
+[32m2025-12-28 17:48:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m205[0m - [1m    - RSI: 0 (value=47.66)[0m
+[32m2025-12-28 17:48:35[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m205[0m - [1m    - MACD: 1 (value=6.12)[0m
+[32m2025-12-28 17:48:36[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m205[0m - [1m    - Bollinger Bands: 0 (value=0.48)[0m
+[32m2025-12-28 17:48:36[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m205[0m - [1m    - EMA Crossover: -1 (value=-16.20)[0m
+[32m2025-12-28 17:48:36[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m217[0m - [1m  → NO SIGNAL: Combined signal is hold (need BUY/SELL)[0m
+[32m2025-12-28 17:48:36[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m200[0m - [1m[HEDGE] ETHUSD Analysis:[0m
+[32m2025-12-28 17:48:36[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m201[0m - [1m  Combined Signal: buy[0m
+[32m2025-12-28 17:48:36[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m202[0m - [1m  Confidence: 0.50[0m
+[32m2025-12-28 17:48:36[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m203[0m - [1m  Signal Strength: 2/4 indicators aligned[0m
+[32m2025-12-28 17:48:36[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m205[0m - [1m    - RSI: 0 (value=48.86)[0m
+[32m2025-12-28 17:48:36[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m205[0m - [1m    - MACD: 1 (value=0.33)[0m
+[32m2025-12-28 17:48:36[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m205[0m - [1m    - Bollinger Bands: 0 (value=0.51)[0m
+[32m2025-12-28 17:48:36[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m205[0m - [1m    - EMA Crossover: 1 (value=0.57)[0m
+[32m2025-12-28 17:48:36[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m211[0m - [1m  → ENTRY SIGNAL: LONG (BUY signal)[0m
+[32m2025-12-28 17:48:36[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m200[0m - [1m[HEDGE] SOLUSD Analysis:[0m
+[32m2025-12-28 17:48:36[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m201[0m - [1m  Combined Signal: hold[0m
+[32m2025-12-28 17:48:36[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m202[0m - [1m  Confidence: 0.00[0m
+[32m2025-12-28 17:48:36[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m203[0m - [1m  Signal Strength: 0/4 indicators aligned[0m
+[32m2025-12-28 17:48:36[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m205[0m - [1m    - RSI: 0 (value=43.14)[0m
+[32m2025-12-28 17:48:36[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m205[0m - [1m    - MACD: 1 (value=0.01)[0m
+[32m2025-12-28 17:48:36[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m205[0m - [1m    - Bollinger Bands: 0 (value=0.29)[0m
+[32m2025-12-28 17:48:36[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m205[0m - [1m    - EMA Crossover: -1 (value=-0.10)[0m
+[32m2025-12-28 17:48:36[0m | [1mINFO    [0m | [36msrc.strategies.correlated_hedging[0m:[36m_create_entry_signal[0m:[36m217[0m - [1m  → NO SIGNAL: Combined signal is hold (need BUY/SELL)[0m
+[32m2025-12-28 17:48:36[0m | [1mINFO    [0m | [36msrc.strategies.strategy_manager[0m:[36mrun_cycle[0m:[36m210[0m - [1mSignal from correlated_hedging: long ETHUSD (confidence: 50%)[0m
+[32m2025-12-28 17:48:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m772[0m - [1m[MTF] BTCUSD Analysis:[0m
+[32m2025-12-28 17:48:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m773[0m - [1m  Higher TF (4h) Trend: NEUTRAL[0m
+[32m2025-12-28 17:48:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m774[0m - [1m  Entry TF (15m) Signal: hold[0m
+[32m2025-12-28 17:48:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m775[0m - [1m  Entry Confidence: 0.00[0m
+[32m2025-12-28 17:48:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m776[0m - [1m  Aligned: False[0m
+[32m2025-12-28 17:48:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m777[0m - [1m  Should Trade: False[0m
+[32m2025-12-28 17:48:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m780[0m - [1m  → NO TRADE: Trend (neutral) not aligned with entry signal (hold)[0m
+[32m2025-12-28 17:48:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m789[0m - [1m    - RSI: 0[0m
+[32m2025-12-28 17:48:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m789[0m - [1m    - MACD: 1[0m
+[32m2025-12-28 17:48:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m789[0m - [1m    - Bollinger Bands: 0[0m
+[32m2025-12-28 17:48:36[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m789[0m - [1m    - EMA Crossover: -1[0m
+[32m2025-12-28 17:48:37[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m772[0m - [1m[MTF] ETHUSD Analysis:[0m
+[32m2025-12-28 17:48:37[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m773[0m - [1m  Higher TF (4h) Trend: NEUTRAL[0m
+[32m2025-12-28 17:48:37[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m774[0m - [1m  Entry TF (15m) Signal: buy[0m
+[32m2025-12-28 17:48:37[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m775[0m - [1m  Entry Confidence: 0.50[0m
+[32m2025-12-28 17:48:37[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m776[0m - [1m  Aligned: False[0m
+[32m2025-12-28 17:48:37[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m777[0m - [1m  Should Trade: False[0m
+[32m2025-12-28 17:48:37[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m780[0m - [1m  → NO TRADE: Trend (neutral) not aligned with entry signal (buy)[0m
+[32m2025-12-28 17:48:37[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m789[0m - [1m    - RSI: 0[0m
+[32m2025-12-28 17:48:37[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m789[0m - [1m    - MACD: 1[0m
+[32m2025-12-28 17:48:37[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m789[0m - [1m    - Bollinger Bands: 0[0m
+[32m2025-12-28 17:48:37[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m789[0m - [1m    - EMA Crossover: 1[0m
+[32m2025-12-28 17:48:37[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m772[0m - [1m[MTF] SOLUSD Analysis:[0m
+[32m2025-12-28 17:48:37[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m773[0m - [1m  Higher TF (4h) Trend: NEUTRAL[0m
+[32m2025-12-28 17:48:37[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m774[0m - [1m  Entry TF (15m) Signal: hold[0m
+[32m2025-12-28 17:48:37[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m775[0m - [1m  Entry Confidence: 0.00[0m
+[32m2025-12-28 17:48:37[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m776[0m - [1m  Aligned: False[0m
+[32m2025-12-28 17:48:37[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m777[0m - [1m  Should Trade: False[0m
+[32m2025-12-28 17:48:37[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m780[0m - [1m  → NO TRADE: Trend (neutral) not aligned with entry signal (hold)[0m
+[32m2025-12-28 17:48:37[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m789[0m - [1m    - RSI: 0[0m
+[32m2025-12-28 17:48:37[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m789[0m - [1m    - MACD: 1[0m
+[32m2025-12-28 17:48:37[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m789[0m - [1m    - Bollinger Bands: 0[0m
+[32m2025-12-28 17:48:37[0m | [1mINFO    [0m | [36msrc.technical_analysis[0m:[36manalyze[0m:[36m789[0m - [1m    - EMA Crossover: -1[0m
+[32m2025-12-28 17:48:37[0m | [1mINFO    [0m | [36msrc.strategies.strategy_manager[0m:[36m_execute_signals[0m:[36m277[0m - [1mExecuting: long 0.009070 ETHUSD @ 2939.94[0m
+[32m2025-12-28 17:48:37[0m | [33m[1mWARNING [0m | [36msrc.hedging.hedge_manager[0m:[36mcreate_hedged_position[0m:[36m161[0m - [33m[1mNo hedge pair configured for ETHUSD[0m
+[32m2025-12-28 17:48:37[0m | [1mINFO    [0m | [36m__main__[0m:[36mrun_trading_cycle[0m:[36m164[0m - [1mGenerated 1 signals[0m
+[32m2025-12-28 17:48:37[0m | [1mINFO    [0m | [36m__main__[0m:[36mrun_trading_cycle[0m:[36m166[0m - [1m  correlated_hedging: long ETHUSD @ 2939.94[0m
+[32m2025-12-28 17:48:37[0m | [1mINFO    [0m | [36m__main__[0m:[36mrun_trading_cycle[0m:[36m173[0m - [1mTrading State: active[0m
+[32m2025-12-28 17:48:37[0m | [1mINFO    [0m | [36m__main__[0m:[36mrun_trading_cycle[0m:[36m181[0m - [1mCycle completed in 3.28s[0m
