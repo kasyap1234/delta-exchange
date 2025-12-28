@@ -124,7 +124,8 @@ class MultiStrategyBot:
             
             self.paper_simulator = PaperTradingSimulator(
                 initial_balance=initial_balance,
-                leverage=leverage
+                leverage=leverage,
+                use_maker_fee=True  # Use limit orders (maker fee 0.04% vs taker 0.06%)
             )
             log.info(f"Paper Trading enabled with ${initial_balance:.2f} @ {leverage}x leverage")
         
