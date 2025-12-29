@@ -601,23 +601,35 @@ class DeltaExchangeClient:
                            product_id: int, 
                            stop_loss_price: float, 
                            take_profit_price: Optional[float] = None,
-                           trail_amount: Optional[float] = None) -> Dict:
+                           trail_amount: Optional[float] = None,
+                           order_id: Optional[int] = None) -> Dict:
         """
-        Update an existing bracket order (by replacing it).
+        Update an existing bracket order using the PUT method.
         
         Args:
             product_id: Delta product ID
             stop_loss_price: New SL price
             take_profit_price: New TP price (optional)
             trail_amount: New trail amount (optional)
+            order_id: The ID of the bracket order to update. If not provided, 
+                     the API may use the product_id to find the unique position bracket.
         """
+        payload = {
+            "product_id": product_id,
+            "bracket_stop_loss_price": str(stop_loss_price)
+        }
+        
+        if order_id:
+            payload["id"] = order_id
+            
+        if take_profit_price:
+            payload["bracket_take_profit_price"] = str(take_profit_price)
+            
+        if trail_amount:
+            payload["bracket_trail_amount"] = str(trail_amount)
+            
         log.info(f"Updating bracket order for product {product_id}: New SL={stop_loss_price}")
-        return self.place_bracket_order(
-            product_id=product_id,
-            stop_loss_price=stop_loss_price,
-            take_profit_price=take_profit_price,
-            trail_amount=trail_amount
-        )
+        return self._request('PUT', '/v2/orders/bracket', data=payload)
     
     def cancel_order(self, order_id: int, product_id: int) -> Order:
         """

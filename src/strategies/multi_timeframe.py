@@ -265,12 +265,22 @@ class MultiTimeframeStrategy(BaseStrategy):
                 )
                 take_profit = current_price - (atr * 4)
             
-            # Position size
-            position_size = capital / current_price
-            
-            # Risk per trade
+            # Position size calculation (Risk-based: 1-2% of capital)
+            risk_pct = getattr(settings.enhanced_risk, 'max_risk_per_trade', 0.02)
+            risk_amount = capital * risk_pct
             risk_per_unit = abs(current_price - stop_loss)
-            risk_amount = risk_per_unit * position_size
+            
+            if risk_per_unit > 0:
+                position_size = risk_amount / risk_per_unit
+            else:
+                position_size = capital / current_price # Fallback
+            
+            # Hard cap: Never exceed allocated capital
+            max_size = capital / current_price
+            position_size = min(position_size, max_size)
+            
+            # Final risk metrics for metadata
+            actual_risk = risk_per_unit * position_size
             
             return StrategySignal(
                 strategy_type=self.strategy_type,
@@ -289,7 +299,7 @@ class MultiTimeframeStrategy(BaseStrategy):
                     'higher_tf_trend': htf_trend,
                     'entry_signal': mtf_result['entry_signal'],
                     'atr': atr,
-                    'risk_amount': risk_amount,
+                    'risk_amount': actual_risk,
                     'trailing_enabled': True,
                     'profit_ladder': self.PROFIT_LEVELS,
                     'indicators': mtf_result.get('indicators', [])
@@ -358,59 +368,6 @@ class MultiTimeframeStrategy(BaseStrategy):
                 
         return signals
 
-    def _create_entry_signal(self, symbol: str, mtf_result: dict,
-                             capital: float) -> Optional[StrategySignal]:
-        """Create an aligned entry signal."""
-        try:
-            current_price = mtf_result.get('current_price', 0)
-            atr = mtf_result.get('atr', 0)
-            htf_trend = mtf_result.get('higher_tf_trend')
-            entry_confidence = mtf_result.get('entry_confidence', 0.5)
-            
-            if current_price <= 0:
-                return None
-                
-            # Calculate position size (risk based 1-2%)
-            # Strategy Manager might override, but we provide a suggestions
-            risk_pct = getattr(settings.enhanced_risk, 'max_risk_per_trade', 0.02)
-            
-            # Stop loss calculation (2x ATR)
-            risk_distance = atr * 2
-            
-            if htf_trend == 'bullish':
-                stop_loss = current_price - risk_distance
-                take_profit = current_price + (risk_distance * 2)
-                direction = SignalDirection.LONG
-            else:
-                stop_loss = current_price + risk_distance
-                take_profit = current_price - (risk_distance * 2)
-                direction = SignalDirection.SHORT
-                
-            # Calculate Position Size
-            # Risk Amount = Capital * Risk%
-            # Size = Risk Amount / Risk Dist
-            risk_amount = capital * risk_pct
-            size = risk_amount / risk_distance if risk_distance > 0 else 0
-            
-            return StrategySignal(
-                strategy_type=self.strategy_type,
-                symbol=symbol,
-                direction=direction,
-                confidence=entry_confidence,
-                entry_price=current_price,
-                position_size=size,
-                stop_loss=stop_loss,
-                take_profit=take_profit,
-                reason=f"MTF Aligned: {htf_trend} + {mtf_result.get('entry_signal')}",
-                metadata={
-                    'atr': atr,
-                    'htf_trend': htf_trend
-                }
-            )
-        except Exception as e:
-            log.error(f"Error creating signal for {symbol}: {e}")
-            return None
-    
     def _check_profit_ladder(self, pos: MTFPosition, 
                              current_price: float) -> Optional[StrategySignal]:
         """

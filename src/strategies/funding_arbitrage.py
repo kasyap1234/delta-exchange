@@ -301,7 +301,8 @@ class FundingArbitrageStrategy(BaseStrategy):
             if rate < self.MIN_FUNDING_THRESHOLD * 2:
                 return False
         
-        log.info(f"Funding {symbol} PASSED: {rate:.4%} ({annualized_return:.1%} AR), Corr={corr_result.correlation:.2f}")
+        annual_rate = funding_data.annualized_rate
+        log.info(f"Funding {symbol} PASSED: {rate:.4%} ({annual_rate:.1%} AR), Corr={correlation:.2f}")
         return True
     
     def enter_arbitrage(self, symbol: str, size: float, 
