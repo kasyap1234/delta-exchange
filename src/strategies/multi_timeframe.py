@@ -45,12 +45,22 @@ class MTFPosition:
                 new_trailing = current_price - (atr * multiplier)
                 if new_trailing > self.current_trailing_stop:
                     self.current_trailing_stop = new_trailing
+            else:
+                # Still check if we need to tighten the stop even if no new high
+                tightened_stop = current_price - (atr * multiplier)
+                if tightened_stop > self.current_trailing_stop:
+                    self.current_trailing_stop = tightened_stop
         else:
             if current_price < self.lowest_since_entry or self.lowest_since_entry == 0:
                 self.lowest_since_entry = current_price
                 new_trailing = current_price + (atr * multiplier)
                 if new_trailing < self.current_trailing_stop or self.current_trailing_stop == 0:
                     self.current_trailing_stop = new_trailing
+            else:
+                # Still check if we need to tighten the stop
+                tightened_stop = current_price + (atr * multiplier)
+                if tightened_stop < self.current_trailing_stop or self.current_trailing_stop == 0:
+                    self.current_trailing_stop = tightened_stop
         
         return self.current_trailing_stop
 
@@ -323,26 +333,23 @@ class MultiTimeframeStrategy(BaseStrategy):
                 if current_price == 0:
                     continue
                 
-                # Update trailing stop in memory
-                # We assume regular ATR updates or lookback; using stored entry ATR for consistency or fetch new
-                # Ideally, use current volatility
-                
-                # Check Profit Ladder (Partial Exits)
-                # Logic: If price reaches R-multiples, exit % and move stop
-                ladder_signal = self._check_profit_ladder(pos, current_price)
-                if ladder_signal:
-                    signals.append(ladder_signal)
-                    # If we took partial profit, we should probably update the stop too
-                    # but trailing logic handles that below.
-                
                 # Update Trailing Stop
+                # Fetch current ATR for better volatility adaptation
+                current_atr = pos.atr_at_entry
+                try:
+                    candles = self.client.get_candles(symbol=symbol, resolution=self.entry_tf)
+                    if len(candles) >= 20:
+                        high = np.array([c.high for c in candles])
+                        low = np.array([c.low for c in candles])
+                        close = np.array([c.close for c in candles])
+                        current_atr = self.analyzer.calculate_atr(high, low, close)
+                except Exception as e:
+                    log.warning(f"Failed to fetch current ATR for {symbol}: {e}")
+
                 old_stop = pos.current_trailing_stop if pos.current_trailing_stop > 0 else pos.stop_loss
                 trail_mult = getattr(settings.enhanced_risk, 'atr_trailing_multiplier', 1.5)
-                pos.update_trailing(current_price, pos.atr_at_entry, multiplier=trail_mult)
+                pos.update_trailing(current_price, current_atr, multiplier=trail_mult)
                 new_stop = pos.current_trailing_stop
-                
-                # If stop moved favorably significantly, update on exchange
-                # ... (rest of the logic)
                 
                 if new_stop != old_stop and new_stop > 0:
                     product_id = self.client.get_product_id(symbol)
@@ -354,12 +361,13 @@ class MultiTimeframeStrategy(BaseStrategy):
                         continue
 
                     try:
-                        self.client.update_bracket_order(
-                            product_id=product_id,
-                            stop_loss_price=new_stop,
-                            take_profit_price=pos.take_profit # Keep original TP or None
-                        )
-                        log.info(f"Updated Trailing Stop for {symbol}: {old_stop} -> {new_stop}")
+                        if not self.dry_run:
+                            self.client.update_bracket_order(
+                                product_id=product_id,
+                                stop_loss_price=new_stop,
+                                take_profit_price=pos.take_profit
+                            )
+                        log.info(f"Updated Trailing Stop for {symbol}: {old_stop} -> {new_stop} (ATR: {current_atr:.4f})")
                     except Exception as e:
                         log.error(f"Failed to update bracket for {symbol}: {e}")
             
@@ -396,14 +404,13 @@ class MultiTimeframeStrategy(BaseStrategy):
         if should_exit:
             exit_size = pos.size * exit_pct
             
-            # Update state before returning signal to prevent duplicates
-            pos.partial_exits += 1
+            # Update state *after* signal is generated and returned to avoid state corruption
+            # StrategyManager should call apply_partial_exit when done
             
             return StrategySignal(
                 strategy_type=self.strategy_type,
                 symbol=pos.symbol,
-                direction=SignalDirection.CLOSE_LONG if pos.side == 'long' 
-                         else SignalDirection.CLOSE_SHORT,
+                direction=SignalDirection.CLOSE_PARTIAL,
                 confidence=0.9,
                 entry_price=current_price,
                 position_size=exit_size,
@@ -411,7 +418,9 @@ class MultiTimeframeStrategy(BaseStrategy):
                 metadata={
                     'partial_exit': True,
                     'r_multiple': target_r,
-                    'exit_pct': exit_pct
+                    'exit_pct': exit_pct,
+                    'original_side': pos.side,
+                    'level_index': pos.partial_exits
                 }
             )
         
@@ -512,3 +521,60 @@ class MultiTimeframeStrategy(BaseStrategy):
         })
         
         return base_status
+
+    def get_active_state(self) -> Dict:
+        """Return active positions for persistence."""
+        return {
+            symbol: {
+                'side': p.side,
+                'entry_price': p.entry_price,
+                'size': p.size,
+                'entry_time': p.entry_time.isoformat(),
+                'stop_loss': p.stop_loss,
+                'take_profit': p.take_profit,
+                'atr_at_entry': p.atr_at_entry,
+                'highest_since_entry': p.highest_since_entry,
+                'lowest_since_entry': p.lowest_since_entry,
+                'current_trailing_stop': p.current_trailing_stop,
+                'partial_exits': p.partial_exits
+            }
+            for symbol, p in self._mtf_positions.items()
+        }
+
+    def restore_active_state(self, state: Dict) -> None:
+        """Restore active positions from persisted state."""
+        for symbol, data in state.items():
+            try:
+                self._mtf_positions[symbol] = MTFPosition(
+                    symbol=symbol,
+                    side=data['side'],
+                    entry_price=data['entry_price'],
+                    size=data['size'],
+                    entry_time=datetime.fromisoformat(data['entry_time']),
+                    stop_loss=data['stop_loss'],
+                    take_profit=data['take_profit'],
+                    atr_at_entry=data['atr_at_entry'],
+                    highest_since_entry=data['highest_since_entry'],
+                    lowest_since_entry=data['lowest_since_entry'],
+                    current_trailing_stop=data['current_trailing_stop'],
+                    partial_exits=data['partial_exits']
+                )
+                log.info(f"Restored MTF position for {symbol}")
+            except Exception as e:
+                log.error(f"Failed to restore MTF position {symbol}: {e}")
+
+    def apply_partial_exit(self, symbol: str, size: float) -> None:
+        """Update memory state after a successful partial exit."""
+        if symbol in self._mtf_positions:
+            pos = self._mtf_positions[symbol]
+            
+            # Validation
+            if size <= 0:
+                raise ValueError(f"Partial exit size must be positive, got {size}")
+            if size > pos.size:
+                raise ValueError(f"Partial exit size {size} exceeds current position size {pos.size}")
+            
+            # Muate state only after validation
+            pos.size -= size
+            pos.partial_exits += 1
+            log.info(f"MTF: Applied partial exit for {symbol}. Size: {size}, Remaining: {pos.size}, Exits: {pos.partial_exits}")

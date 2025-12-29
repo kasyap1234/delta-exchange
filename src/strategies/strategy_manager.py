@@ -11,7 +11,7 @@ from enum import Enum
 import threading
 import asyncio
 
-from src.strategies.base_strategy import BaseStrategy, StrategySignal, StrategyType
+from src.strategies.base_strategy import BaseStrategy, StrategySignal, StrategyType, SignalDirection
 from src.strategies.funding_arbitrage import FundingArbitrageStrategy
 from src.strategies.correlated_hedging import CorrelatedHedgingStrategy
 from src.strategies.multi_timeframe import MultiTimeframeStrategy
@@ -19,6 +19,7 @@ from src.delta_client import DeltaExchangeClient, Position
 from src.websocket_client import DeltaWebSocketClient
 from config.settings import settings
 from utils.logger import log
+from src.utils.persistence_manager import PersistenceManager
 
 
 class TradingState(str, Enum):
@@ -103,6 +104,7 @@ class StrategyManager:
         
         # State
         self.state = TradingState.ACTIVE
+        self.persistence = PersistenceManager()
         
         # WebSocket Client
         self.ws_client = DeltaWebSocketClient()
@@ -113,6 +115,9 @@ class StrategyManager:
         # Initialize strategies
         self.strategies: Dict[StrategyType, BaseStrategy] = {}
         self._initialize_strategies()
+        
+        # Load persisted state on startup
+        self._reconcile_with_exchange()
         
         log.info(f"StrategyManager initialized with {len(self.strategies)} strategies")
         log.info(f"Allocation: {self._format_allocation()}")
@@ -290,6 +295,9 @@ class StrategyManager:
             if all_signals:
                 self._execute_signals(all_signals)
             
+            # Save state after each cycle
+            self._save_current_state()
+            
             return all_signals
             
         except Exception as e:
@@ -352,7 +360,9 @@ class StrategyManager:
                             f"{signal.hedge_size:.6f} {signal.hedge_symbol}")
                 
                 # Strategy-specific execution
-                if signal.strategy_type == StrategyType.FUNDING_ARBITRAGE:
+                if signal.direction == SignalDirection.CLOSE_PARTIAL:
+                    self._execute_partial_exit(signal, strategy)
+                elif signal.strategy_type == StrategyType.FUNDING_ARBITRAGE:
                     self._execute_funding_arb_signal(signal, strategy)
                 elif signal.strategy_type == StrategyType.CORRELATED_HEDGING:
                     self._execute_hedged_signal(signal, strategy)
@@ -396,6 +406,135 @@ class StrategyManager:
             strategy.execute_entry(signal)
         else:
             strategy.execute_exit(signal)
+
+    def _execute_partial_exit(self, signal: StrategySignal, strategy: BaseStrategy) -> None:
+        """Execute a partial position exit."""
+        log.info(f"Executing partial exit for {signal.symbol}: {signal.position_size:.6f}")
+        
+        # Determine side for the closing order (opposite of current)
+        from src.delta_client import OrderSide, OrderType
+        
+        side = None
+        # 1. Explicitly handle via metadata
+        if signal.metadata:
+            original_side = signal.metadata.get('original_side')
+            if original_side == 'long':
+                side = OrderSide.SELL
+            elif original_side == 'short':
+                side = OrderSide.BUY
+                
+        # 2. If metadata absent, try to infer from direction or position
+        if not side:
+            if signal.direction == SignalDirection.CLOSE_LONG:
+                side = OrderSide.SELL
+            elif signal.direction == SignalDirection.CLOSE_SHORT:
+                side = OrderSide.BUY
+            elif hasattr(signal, 'position') and getattr(signal, 'position'):
+                # Handle potential dynamic position field on signal
+                pos = getattr(signal, 'position')
+                side = OrderSide.SELL if pos.size > 0 else OrderSide.BUY
+            elif hasattr(strategy, 'get_position'):
+                # Try to get position from strategy's internal tracking
+                pos = strategy.get_position(signal.symbol)
+                if pos and pos.size != 0:
+                    side = OrderSide.SELL if pos.size > 0 else OrderSide.BUY
+        
+        # 3. If inference impossible, raise error
+        if not side:
+            error_msg = (f"Cannot determine order side for {signal.direction.value} on {signal.symbol}. "
+                        f"Provide 'original_side' in metadata or ensure a position exists.")
+            log.error(error_msg)
+            raise ValueError(error_msg)
+        
+        if not self.dry_run:
+            self.client.place_order(
+                symbol=signal.symbol,
+                side=side,
+                size=signal.position_size,
+                order_type=OrderType.MARKET,
+                reduce_only=True
+            )
+            # Update strategy internal state
+            if hasattr(strategy, 'apply_partial_exit'):
+                strategy.apply_partial_exit(signal.symbol, signal.position_size)
+        else:
+            log.info(f"[DRY RUN] Would execute partial {side.value} for {signal.position_size} {signal.symbol}")
+            if hasattr(strategy, 'apply_partial_exit'):
+                strategy.apply_partial_exit(signal.symbol, signal.position_size)
+
+    def _save_current_state(self) -> None:
+        """Save the current bot state to persistent storage."""
+        state = {
+            'timestamp': datetime.now().isoformat(),
+            'state': self.state.value,
+            'today_stats': {
+                'date': self.today_stats.date.isoformat() if self.today_stats else None,
+                'starting_balance': self.today_stats.starting_balance if self.today_stats else 0,
+                'realized_pnl': self.today_stats.realized_pnl if self.today_stats else 0,
+                'trades_executed': self.today_stats.trades_executed if self.today_stats else 0,
+                'funding_earned': self.today_stats.funding_earned if self.today_stats else 0
+            },
+            'strategies': {}
+        }
+        
+        for st_type, strategy in self.strategies.items():
+            state['strategies'][st_type.value] = {
+                'performance': {
+                    'total_trades': strategy.performance.total_trades,
+                    'winning_trades': strategy.performance.winning_trades,
+                    'losing_trades': strategy.performance.losing_trades,
+                    'total_pnl': strategy.performance.total_pnl,
+                    'total_funding_earned': strategy.performance.total_funding_earned
+                },
+                # Strategy-specific active position state
+                'active_state': getattr(strategy, 'get_active_state', lambda: {})()
+            }
+            
+        self.persistence.save_state(state)
+
+    def _reconcile_with_exchange(self) -> None:
+        """Reconcile internal state with exchange reality using persisted data."""
+        persisted_state = self.persistence.load_state()
+        if not persisted_state:
+            return
+
+        log.info("Reconciling internal state with persisted data...")
+        
+        # Restore daily stats if same day
+        stats_data = persisted_state.get('today_stats', {})
+        if stats_data.get('date') == date.today().isoformat():
+            self.today_stats = DailyStats(
+                date=date.today(),
+                starting_balance=stats_data.get('starting_balance', 0),
+                current_balance=stats_data.get('starting_balance', 0), # Will be updated in cycle
+                realized_pnl=stats_data.get('realized_pnl', 0),
+                trades_executed=stats_data.get('trades_executed', 0),
+                funding_earned=stats_data.get('funding_earned', 0)
+            )
+            log.info(f"Restored daily stats for {date.today()}")
+
+        # Restore strategy performance and active states
+        strategies_data = persisted_state.get('strategies', {})
+        for st_type_val, st_data in strategies_data.items():
+            try:
+                st_type = StrategyType(st_type_val)
+                strategy = self.strategies.get(st_type)
+                if not strategy:
+                    continue
+                
+                perf_data = st_data.get('performance', {})
+                strategy.performance.total_trades = perf_data.get('total_trades', 0)
+                strategy.performance.winning_trades = perf_data.get('winning_trades', 0)
+                strategy.performance.losing_trades = perf_data.get('losing_trades', 0)
+                strategy.performance.total_pnl = perf_data.get('total_pnl', 0)
+                strategy.performance.total_funding_earned = perf_data.get('total_funding_earned', 0)
+                
+                # Restore active state (e.g., partial exits for MTF)
+                if hasattr(strategy, 'restore_active_state'):
+                    strategy.restore_active_state(st_data.get('active_state', {}))
+                    
+            except ValueError:
+                continue
     
     def get_strategy(self, strategy_type: StrategyType) -> Optional[BaseStrategy]:
         """Get a specific strategy instance."""

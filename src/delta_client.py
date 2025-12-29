@@ -403,6 +403,39 @@ class DeltaExchangeClient:
         response = self._request('GET', '/v2/profile')
         return response.get('result', {})
 
+    def create_heartbeat(self, timeout: int = 60) -> Dict:
+        """
+        Create a heartbeat for cancel-on-disconnect.
+        
+        Args:
+            timeout: Seconds after which orders should be cancelled if no heartbeat is received.
+        """
+        data = {"timeout": timeout}
+        log.info(f"Creating heartbeat with timeout {timeout}s")
+        return self._request('POST', '/v2/orders/heartbeat', data=data)
+
+    def get_spot_balance(self, asset: str = 'USDT') -> float:
+        """
+        Get available balance for a specific spot asset.
+        
+        Args:
+            asset: Asset symbol (e.g., 'USDT', 'BTC')
+            
+        Returns:
+            Available balance as float
+        """
+        balances = self.get_wallet_balance()
+        if not balances:
+            return 0.0
+            
+        for wallet in balances:
+            asset_symbol = wallet.get('asset_symbol', '') or wallet.get('asset', {}).get('symbol', '')
+            if asset_symbol == asset:
+                val = wallet.get('available_balance') or 0
+                return float(val)
+        
+        return 0.0
+
     def set_margin_mode(self, mode: str = "isolated") -> Dict:
         """
         Set margin mode for the account.

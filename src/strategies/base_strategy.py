@@ -26,6 +26,7 @@ class SignalDirection(str, Enum):
     NEUTRAL = "neutral"
     CLOSE_LONG = "close_long"
     CLOSE_SHORT = "close_short"
+    CLOSE_PARTIAL = "close_partial"
 
 
 @dataclass

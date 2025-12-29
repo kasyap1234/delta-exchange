@@ -22,7 +22,8 @@ from utils.logger import log
 @dataclass
 class ArbitragePosition:
     """Tracks a funding arbitrage position."""
-    symbol: str
+    long_symbol: str
+    short_symbol: str
     long_size: float
     short_size: float
     entry_funding_rate: float
@@ -79,8 +80,8 @@ class FundingArbitrageStrategy(BaseStrategy):
         )
         
         # Hedge manager for correlated hedging
-        self.hedge_manager = HedgeManager(client, dry_run=dry_run)
         self.correlation_calc = CorrelationCalculator(client)
+        self.hedge_manager = HedgeManager(client, self.correlation_calc, dry_run=dry_run)
         
         # Track active arbitrage positions
         self._arb_positions: Dict[str, ArbitragePosition] = {}
@@ -334,28 +335,40 @@ class FundingArbitrageStrategy(BaseStrategy):
         
         try:
             # For true delta-neutral, we need:
-            # 1. Long spot or long perpetual on one venue
-            # 2. Short perpetual on Delta Exchange
+            # 1. Long spot (BTC/USDT)
+            # 2. Short perpetual (BTCUSD or BTCUSDT)
             
-            # Since Delta only has perpetuals, we'll use the approach of:
-            # - Opening a SHORT perpetual (to earn positive funding)
-            # - This leaves us directionally exposed, but for demo purposes
+            spot_symbol = self._get_spot_symbol(symbol)
+            log.info(f"Entering funding arbitrage: SHORT Perp {size} {symbol} + LONG Spot {size} {spot_symbol}")
             
-            # In production, you'd want to hedge on spot market
-            log.info(f"Entering funding arbitrage: SHORT {size} {symbol}")
-            
-            # Place short order
-            from src.delta_client import OrderSide, OrderType
-            self.client.place_order(
-                symbol=symbol,
-                side=OrderSide.SELL,
-                size=size,
-                order_type=OrderType.MARKET
-            )
+            if not self.dry_run:
+                # 1. Check spot balance
+                usdt_needed = size * self.client.get_ticker(spot_symbol).get('mark_price', 0)
+                if self.client.get_spot_balance('USDT') < usdt_needed:
+                    log.error(f"Insufficient USDT balance for spot hedge. Needed: {usdt_needed}")
+                    return None
+
+                from src.delta_client import OrderSide, OrderType
+                # 2. Place LONG spot order
+                self.client.place_order(
+                    symbol=spot_symbol,
+                    side=OrderSide.BUY,
+                    size=size,
+                    order_type=OrderType.MARKET
+                )
+                
+                # 3. Place SHORT perp order
+                self.client.place_order(
+                    symbol=symbol,
+                    side=OrderSide.SELL,
+                    size=size,
+                    order_type=OrderType.MARKET
+                )
             
             arb_pos = ArbitragePosition(
-                symbol=symbol,
-                long_size=0,  # Would be on spot exchange
+                long_symbol=spot_symbol,
+                short_symbol=symbol,
+                long_size=size,
                 short_size=size,
                 entry_funding_rate=funding_rate,
                 entry_time=datetime.now()
@@ -369,6 +382,12 @@ class FundingArbitrageStrategy(BaseStrategy):
         except Exception as e:
             log.error(f"Failed to enter funding arb: {e}")
             return None
+
+    def _get_spot_symbol(self, perp_symbol: str) -> str:
+        """Helper to get spot symbol from perp symbol."""
+        # Simple mapping: BTCUSDT -> BTC/USDT, BTCUSD -> BTC/USDT
+        base = perp_symbol.replace('USDT', '').replace('USD', '')
+        return f"{base}/USDT"
     
     def exit_arbitrage(self, symbol: str) -> bool:
         """
@@ -392,8 +411,11 @@ class FundingArbitrageStrategy(BaseStrategy):
             return True
         
         try:
-            # Close the short position
-            self.client.close_position(symbol)
+            if not self.dry_run:
+                # 1. Close long spot
+                self.client.close_position(arb_pos.long_symbol)
+                # 2. Close short perp
+                self.client.close_position(arb_pos.short_symbol)
             
             arb_pos.is_active = False
             log.info(f"Exited funding arb: {symbol}, "
@@ -407,6 +429,38 @@ class FundingArbitrageStrategy(BaseStrategy):
         except Exception as e:
             log.error(f"Failed to exit funding arb: {e}")
             return False
+
+    def get_active_state(self) -> Dict:
+        """Return active positions for persistence."""
+        return {
+            symbol: {
+                'long_symbol': p.long_symbol,
+                'short_symbol': p.short_symbol,
+                'long_size': p.long_size,
+                'short_size': p.short_size,
+                'entry_funding_rate': p.entry_funding_rate,
+                'entry_time': p.entry_time.isoformat(),
+                'total_funding_earned': p.total_funding_earned
+            }
+            for symbol, p in self._arb_positions.items() if p.is_active
+        }
+
+    def restore_active_state(self, state: Dict) -> None:
+        """Restore active positions from persisted state."""
+        for symbol, data in state.items():
+            try:
+                self._arb_positions[symbol] = ArbitragePosition(
+                    long_symbol=data['long_symbol'],
+                    short_symbol=data['short_symbol'],
+                    long_size=data['long_size'],
+                    short_size=data['short_size'],
+                    entry_funding_rate=data['entry_funding_rate'],
+                    entry_time=datetime.fromisoformat(data['entry_time']),
+                    total_funding_earned=data['total_funding_earned']
+                )
+                log.info(f"Restored funding arb position for {symbol}")
+            except Exception as e:
+                log.error(f"Failed to restore arb position {symbol}: {e}")
     
     def record_funding_payment(self, symbol: str, amount: float) -> None:
         """
