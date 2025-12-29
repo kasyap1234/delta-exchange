@@ -13,6 +13,8 @@ from src.strategies.base_strategy import (
 )
 from src.delta_client import DeltaExchangeClient, Position
 from src.hedging.funding_monitor import FundingMonitor, FundingRateData
+from src.hedging.hedge_manager import HedgeManager
+from src.hedging.correlation import CorrelationCalculator
 from config.settings import settings
 from utils.logger import log
 
@@ -45,16 +47,19 @@ class FundingArbitrageStrategy(BaseStrategy):
     Return: 10-30% APY depending on market conditions
     """
     
-    # Minimum funding rate to enter (0.005% = 0.00005)
-    MIN_FUNDING_THRESHOLD = 0.00005
+    # Minimum funding rate to enter (0.01% per 8h = 0.0001)
+    MIN_FUNDING_THRESHOLD = 0.0001
+    
+    # Minimum correlation for hedging pair
+    MIN_CORRELATION = 0.8
     
     # Maximum funding rate to stay in position
     # If rate drops below this, close position
-    EXIT_FUNDING_THRESHOLD = 0.00002
+    EXIT_FUNDING_THRESHOLD = 0.00003
     
     def __init__(self, client: DeltaExchangeClient,
                  capital_allocation: float = 0.4,
-                 funding_threshold: float = 0.0005,
+                 funding_threshold: float = 0.0001,
                  dry_run: bool = False):
         """
         Initialize funding arbitrage strategy.
@@ -72,6 +77,10 @@ class FundingArbitrageStrategy(BaseStrategy):
             client, 
             funding_threshold=funding_threshold
         )
+        
+        # Hedge manager for correlated hedging
+        self.hedge_manager = HedgeManager(client, dry_run=dry_run)
+        self.correlation_calc = CorrelationCalculator(client)
         
         # Track active arbitrage positions
         self._arb_positions: Dict[str, ArbitragePosition] = {}
@@ -236,22 +245,63 @@ class FundingArbitrageStrategy(BaseStrategy):
         
         return signals
     
+    def should_enter_funding_arb(self, funding_rate: float, 
+                                 min_rate: float = 0.0001, 
+                                 correlation: float = 0.0,
+                                 min_correlation: float = 0.8) -> tuple[bool, str]:
+        """
+        Evaluate funding arb opportunity based on rate and correlation.
+        Returns: (should_enter, reason)
+        """
+        if funding_rate < min_rate:
+            return False, f"Funding {funding_rate:.4%} < threshold {min_rate:.4%}"
+        
+        if correlation < min_correlation:
+            return False, f"Correlation {correlation:.2f} < {min_correlation}"
+        
+        # Annualized return check
+        annualized = funding_rate * 3 * 365  # 3x daily, 365 days
+        if annualized < 0.10:  # 10% minimum annualized
+            return False, f"Annualized {annualized:.1%} too low"
+            
+        return True, f"Opportunity: {annualized:.1%} annualized"
+
     def _is_funding_favorable(self, funding_data: FundingRateData) -> bool:
         """
         Check if funding rate is favorable for arbitrage.
         
-        Favorable = positive funding rate above threshold
-        (longs pay shorts, so we short perpetual + hedge with spot/long)
+        Criteria:
+        1. Funding rate > MIN_FUNDING_THRESHOLD (0.01% per 8h)
+        2. Annualized return > 10%
+        3. Hedge correlation > MIN_CORRELATION (0.8)
         """
-        if funding_data.funding_rate < self.funding_threshold:
+        symbol = funding_data.symbol
+        rate = funding_data.funding_rate
+        
+        # 3. Use unified evaluation logic
+        hedge_pair = self.correlation_calc.get_hedge_pair(symbol)
+        correlation = 0.0
+        if hedge_pair:
+            corr_result = self.correlation_calc.calculate_correlation(symbol, hedge_pair)
+            correlation = corr_result.correlation if corr_result.is_reliable else 0.0
+            
+        should_enter, reason = self.should_enter_funding_arb(
+            rate, self.MIN_FUNDING_THRESHOLD, correlation, self.MIN_CORRELATION
+        )
+        
+        if not should_enter:
+            log.debug(f"Funding {symbol} rejected: {reason}")
             return False
         
-        # Also check historical consistency
-        history = self.funding_monitor.get_history(funding_data.symbol)
+        # 4. Historical consistency check
+        history = self.funding_monitor.get_history(symbol)
         if history and not history.is_consistently_positive:
-            # Funding has been volatile, be more cautious
-            return funding_data.funding_rate >= self.funding_threshold * 2
+            log.debug(f"Funding {symbol}: Inconsistent historical funding")
+            # If inconsistent, require a higher buffer
+            if rate < self.MIN_FUNDING_THRESHOLD * 2:
+                return False
         
+        log.info(f"Funding {symbol} PASSED: {rate:.4%} ({annualized_return:.1%} AR), Corr={corr_result.correlation:.2f}")
         return True
     
     def enter_arbitrage(self, symbol: str, size: float, 

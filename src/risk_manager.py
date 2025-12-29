@@ -102,48 +102,131 @@ class RiskManager:
             current_exposure=current_positions / self.config.max_open_positions
         )
     
+    def calculate_risk_based_size(self, entry_price: float, stop_loss_price: float, 
+                                 account_balance: float, risk_pct: Optional[float] = None) -> float:
+        """
+        Position Size = (Account × Risk%) / |Entry - StopLoss|
+        Industry standard: 1-2% risk per trade.
+        """
+        risk_pct = risk_pct or settings.enhanced_risk.max_risk_per_trade
+        risk_amount = account_balance * risk_pct
+        price_risk = abs(entry_price - stop_loss_price)
+        
+        if price_risk <= 0:
+            return 0
+            
+        return risk_amount / price_risk
+
+    def get_kelly_fraction(self, win_rate: float, win_loss_ratio: float) -> float:
+        """
+        Calculate optimal bet size using Kelly Criterion.
+        Formula: f* = (p * b - q) / b
+        Where: p = win rate, q = 1-p, b = win/loss ratio
+        """
+        q = 1 - win_rate
+        kelly = (win_rate * win_loss_ratio - q) / win_loss_ratio
+        
+        # Use fractional Kelly (e.g. 0.5) for safety, and cap at max risk
+        safe_kelly = kelly * settings.enhanced_risk.kelly_fraction
+        return max(0, min(safe_kelly, settings.enhanced_risk.max_risk_per_trade))
+
+    def adjust_for_volatility(self, base_size: float, current_atr: float, 
+                             avg_atr: float) -> float:
+        """
+        Reduce position size if current volatility is significantly higher than average.
+        """
+        if not settings.enhanced_risk.reduce_size_high_volatility or avg_atr <= 0:
+            return base_size
+            
+        # If ATR > 1.5x average, reduce size proportionally
+        ratio = current_atr / avg_atr
+        if ratio > settings.enhanced_risk.atr_size_multiplier:
+            reduction_factor = settings.enhanced_risk.atr_size_multiplier / ratio
+            return base_size * reduction_factor
+            
+        return base_size
+
     def calculate_position_size(self, symbol: str, side: str, 
                                  entry_price: float, 
-                                 available_balance: float) -> PositionSizing:
+                                 available_balance: float,
+                                 atr: Optional[float] = None,
+                                 avg_atr: Optional[float] = None) -> PositionSizing:
         """
-        Calculate optimal position size with stop-loss and take-profit levels.
+        Calculate optimal position size using risk-based rules.
         
-        Uses the 10% capital rule and calculates risk levels:
-        - Stop-loss at 2% below entry (for long) or above (for short)
-        - Take-profit at 4% above entry (for long) or below (for short)
+        Implements:
+        1. 2% Risk Rule: Position Size = (Account * Risk%) / |Entry - StopLoss|
+        2. Kelly Criterion: Fraction of capital to allocate based on win rate
+        3. ATR-based Stops: Uses ATR for volatility-adjusted stop distance
         
         Args:
             symbol: Trading pair symbol
             side: 'buy' or 'sell'
             entry_price: Expected entry price
             available_balance: Current available capital
+            atr: Current ATR for dynamic stops
+            avg_atr: Average ATR for volatility adjustment
             
         Returns:
             PositionSizing with size, stop-loss, and take-profit
         """
-        # Calculate maximum capital to risk
-        max_capital = available_balance * self.config.max_capital_per_trade
+        # 1. Determine Stop-Loss Distance based on ATR or % fallback
+        if atr:
+            sl_multiplier = settings.enhanced_risk.atr_stop_multiplier
+            risk_dist = atr * sl_multiplier
+        else:
+            risk_dist = entry_price * self.config.stop_loss_pct
+
+        # 2. Calculate explicit SL/TP prices
+        if side.lower() == 'buy' or side.lower() == 'long':
+            stop_loss_price = entry_price - risk_dist
+            take_profit_price = entry_price + (risk_dist * 2)  # 2:1 R:R default
+        else:
+            stop_loss_price = entry_price + risk_dist
+            take_profit_price = entry_price - (risk_dist * 2)
+
+        # 3. Calculate Base Position Size based on RISK
+        nominal_size = self.calculate_risk_based_size(
+            entry_price, stop_loss_price, available_balance
+        )
         
-        # Calculate position size in contracts/units
-        position_size = max_capital / entry_price
+        # 4. Apply Kelly Criterion Limit (if enabled)
+        if settings.enhanced_risk.use_kelly_sizing:
+            # Conservative defaults for Kelly
+             win_rate = 0.45 
+             win_loss_ratio = 2.0
+             kelly_fraction = self.get_kelly_fraction(win_rate, win_loss_ratio)
+             
+             # Kelly-capped size (Kelly fraction refers to fraction of account)
+             kelly_max_allocation = available_balance * kelly_fraction
+             kelly_size_units = kelly_max_allocation / entry_price
+             
+             nominal_size = min(nominal_size, kelly_size_units)
+
+        # 5. Apply Volatility Adjustment
+        if atr and avg_atr:
+            nominal_size = self.adjust_for_volatility(nominal_size, atr, avg_atr)
+
+        # 6. Global Caps Check
+        # Never exceed max_position_pct of total account
+        total_account_cap = available_balance * settings.enhanced_risk.max_position_pct
+        cap_units = total_account_cap / entry_price
         
-        # Calculate stop-loss and take-profit prices
-        if side.lower() == 'buy':
-            stop_loss_price = entry_price * (1 - self.config.stop_loss_pct)
-            take_profit_price = entry_price * (1 + self.config.take_profit_pct)
-        else:  # sell/short
-            stop_loss_price = entry_price * (1 + self.config.stop_loss_pct)
-            take_profit_price = entry_price * (1 - self.config.take_profit_pct)
+        # Also respect the older max_capital_per_trade for backward compatibility or extra safety
+        legacy_cap = available_balance * self.config.max_capital_per_trade
+        legacy_cap_units = legacy_cap / entry_price
         
-        # Calculate risk/reward
-        risk_amount = abs(entry_price - stop_loss_price) * position_size
-        potential_profit = abs(take_profit_price - entry_price) * position_size
+        final_size = min(nominal_size, cap_units, legacy_cap_units)
+        
+        # Calculate final metrics
+        risk_amount = abs(entry_price - stop_loss_price) * final_size
+        potential_profit = abs(take_profit_price - entry_price) * final_size
         risk_reward_ratio = potential_profit / risk_amount if risk_amount > 0 else 0
         
         sizing = PositionSizing(
             symbol=symbol,
             side=side,
-            size=position_size,
+            size=final_size,
             entry_price=entry_price,
             stop_loss_price=stop_loss_price,
             take_profit_price=take_profit_price,
@@ -152,14 +235,17 @@ class RiskManager:
             risk_reward_ratio=risk_reward_ratio
         )
         
-        log.info(f"Position sizing for {symbol}: Size={position_size:.4f}, "
+        log.info(f"Position sizing for {symbol}: Size={final_size:.4f}, "
                  f"SL={stop_loss_price:.2f}, TP={take_profit_price:.2f}, "
                  f"R:R={risk_reward_ratio:.2f}")
         
         return sizing
+
     
     def should_close_position(self, entry_price: float, current_price: float, 
-                               side: str) -> tuple[bool, Optional[ExitReason]]:
+                               side: str,
+                               stop_loss: Optional[float] = None,
+                               take_profit: Optional[float] = None) -> tuple[bool, Optional[ExitReason]]:
         """
         Check if position should be closed based on stop-loss or take-profit.
         
@@ -167,31 +253,33 @@ class RiskManager:
             entry_price: Original entry price
             current_price: Current market price
             side: 'buy' or 'sell'
+            stop_loss: Explicit stop loss price if available
+            take_profit: Explicit take profit price if available
             
         Returns:
             Tuple of (should_close, exit_reason)
         """
         if side.lower() == 'buy':
             # Long position
-            stop_loss_price = entry_price * (1 - self.config.stop_loss_pct)
-            take_profit_price = entry_price * (1 + self.config.take_profit_pct)
+            sl_price = stop_loss or (entry_price * (1 - self.config.stop_loss_pct))
+            tp_price = take_profit or (entry_price * (1 + self.config.take_profit_pct))
             
-            if current_price <= stop_loss_price:
-                log.warning(f"Stop-loss triggered: entry={entry_price}, current={current_price}")
+            if current_price <= sl_price:
+                log.warning(f"Stop-loss triggered: entry={entry_price}, current={current_price}, sl={sl_price}")
                 return True, ExitReason.STOP_LOSS
-            elif current_price >= take_profit_price:
-                log.info(f"Take-profit triggered: entry={entry_price}, current={current_price}")
+            elif current_price >= tp_price:
+                log.info(f"Take-profit triggered: entry={entry_price}, current={current_price}, tp={tp_price}")
                 return True, ExitReason.TAKE_PROFIT
         else:
             # Short position
-            stop_loss_price = entry_price * (1 + self.config.stop_loss_pct)
-            take_profit_price = entry_price * (1 - self.config.take_profit_pct)
+            sl_price = stop_loss or (entry_price * (1 + self.config.stop_loss_pct))
+            tp_price = take_profit or (entry_price * (1 - self.config.take_profit_pct))
             
-            if current_price >= stop_loss_price:
-                log.warning(f"Stop-loss triggered: entry={entry_price}, current={current_price}")
+            if current_price >= sl_price:
+                log.warning(f"Stop-loss triggered: entry={entry_price}, current={current_price}, sl={sl_price}")
                 return True, ExitReason.STOP_LOSS
-            elif current_price <= take_profit_price:
-                log.info(f"Take-profit triggered: entry={entry_price}, current={current_price}")
+            elif current_price <= tp_price:
+                log.info(f"Take-profit triggered: entry={entry_price}, current={current_price}, tp={tp_price}")
                 return True, ExitReason.TAKE_PROFIT
         
         return False, None

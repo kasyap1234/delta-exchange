@@ -397,6 +397,31 @@ class DeltaExchangeClient:
         """
         response = self._request('GET', '/v2/wallet/balances')
         return response.get('result', {})
+
+    def get_profile(self) -> Dict:
+        """Get user profile information including subaccount ID."""
+        response = self._request('GET', '/v2/profile')
+        return response.get('result', {})
+
+    def set_margin_mode(self, mode: str = "isolated") -> Dict:
+        """
+        Set margin mode for the account.
+        
+        Args:
+            mode: 'isolated' or 'portfolio'
+        """
+        profile = self.get_profile()
+        user_id = profile.get('id')
+        
+        if not user_id:
+            raise Exception("Could not retrieve user ID for margin mode change")
+            
+        data = {
+            "margin_mode": mode,
+            "subaccount_user_id": str(user_id)
+        }
+        log.info(f"Setting margin mode to {mode} for user {user_id}")
+        return self._request('PUT', '/v2/users/margin_mode', data=data)
     
     def get_positions(self, symbols: Optional[List[str]] = None) -> List[Position]:
         """
@@ -456,7 +481,9 @@ class DeltaExchangeClient:
                     limit_price: Optional[float] = None,
                     reduce_only: bool = False,
                     client_order_id: Optional[str] = None,
-                    size_in_contracts: bool = False) -> Order:
+                    size_in_contracts: bool = False,
+                    time_in_force: str = "gtc",
+                    post_only: bool = False) -> Order:
         """
         Place a new order.
         
@@ -469,6 +496,8 @@ class DeltaExchangeClient:
             reduce_only: Whether order should only reduce position
             client_order_id: Optional custom order ID
             size_in_contracts: If True, size is already in contracts (skip conversion)
+            time_in_force: gtc, ioc, or fok
+            post_only: If True, order must be maker (limit only)
             
         Returns:
             Created Order object
@@ -499,7 +528,9 @@ class DeltaExchangeClient:
             'product_id': product_id,
             'side': side.value,
             'order_type': order_type.value,
-            'size': num_contracts
+            'size': num_contracts,
+            'time_in_force': time_in_force,
+            'post_only': post_only
         }
         
         if order_type == OrderType.LIMIT and limit_price:
@@ -518,6 +549,75 @@ class DeltaExchangeClient:
         
         log.info(f"TRADE: Order placed successfully - ID: {order.id}")
         return order
+
+    def place_bracket_order(self, 
+                           product_id: int,
+                           stop_loss_price: float,
+                           stop_loss_limit: Optional[float] = None,
+                           take_profit_price: Optional[float] = None,
+                           take_profit_limit: Optional[float] = None,
+                           trail_amount: Optional[float] = None,
+                           trigger_method: str = "last_traded_price") -> Dict:
+        """
+        Place a bracket order (SL + optional TP) for an existing position.
+        
+        Args:
+            product_id: Delta product ID
+            stop_loss_price: Price to trigger stop loss
+            stop_loss_limit: Limit price for SL (None = market)
+            take_profit_price: Price to trigger take profit
+            take_profit_limit: Limit price for TP (None = market)
+            trail_amount: Trailing stop offset amount
+            trigger_method: 'last_traded_price', 'mark_price', or 'index_price'
+        """
+        payload = {
+            "product_id": product_id,
+            "stop_loss_order": {
+                "order_type": "limit_order" if stop_loss_limit else "market_order",
+                "stop_price": str(stop_loss_price),
+            },
+            "bracket_stop_trigger_method": trigger_method
+        }
+        
+        if stop_loss_limit:
+            payload["stop_loss_order"]["limit_price"] = str(stop_loss_limit)
+        
+        if trail_amount:
+            # Trailing stop setup
+            payload["stop_loss_order"]["trail_amount"] = str(trail_amount)
+
+        if take_profit_price:
+            payload["take_profit_order"] = {
+                "order_type": "limit_order" if take_profit_limit else "market_order",
+                "stop_price": str(take_profit_price)
+            }
+            if take_profit_limit:
+                payload["take_profit_order"]["limit_price"] = str(take_profit_limit)
+                
+        log.info(f"Placing bracket order for product {product_id}: SL={stop_loss_price}, TP={take_profit_price}")
+        return self._request('POST', '/v2/orders/bracket', data=payload)
+
+    def update_bracket_order(self, 
+                           product_id: int, 
+                           stop_loss_price: float, 
+                           take_profit_price: Optional[float] = None,
+                           trail_amount: Optional[float] = None) -> Dict:
+        """
+        Update an existing bracket order (by replacing it).
+        
+        Args:
+            product_id: Delta product ID
+            stop_loss_price: New SL price
+            take_profit_price: New TP price (optional)
+            trail_amount: New trail amount (optional)
+        """
+        log.info(f"Updating bracket order for product {product_id}: New SL={stop_loss_price}")
+        return self.place_bracket_order(
+            product_id=product_id,
+            stop_loss_price=stop_loss_price,
+            take_profit_price=take_profit_price,
+            trail_amount=trail_amount
+        )
     
     def cancel_order(self, order_id: int, product_id: int) -> Order:
         """
@@ -539,6 +639,20 @@ class DeltaExchangeClient:
         
         response = self._request('DELETE', '/v2/orders', data=data)
         return Order.from_api_response(response.get('result', {}))
+    
+    def place_batch_orders(self, orders: List[Dict]) -> List[Dict]:
+        """
+        Place multiple orders atomically (up to 50).
+        
+        Args:
+            orders: List of order dictionaries (similar to place_order payload)
+            
+        Returns:
+            List of responses for each order
+        """
+        log.info(f"TRADE: Placing batch of {len(orders)} orders")
+        response = self._request('POST', '/v2/orders/batch', data={'orders': orders})
+        return response.get('result', [])
     
     def cancel_all_orders(self, product_id: Optional[int] = None) -> List[Order]:
         """

@@ -13,7 +13,7 @@ from src.strategies.base_strategy import (
 from src.delta_client import DeltaExchangeClient, Position
 from src.technical_analysis import (
     TechnicalAnalyzer, MultiTimeframeAnalyzer, 
-    TechnicalAnalysisResult, Signal
+    TechnicalAnalysisResult, Signal, IndicatorSignal
 )
 from config.settings import settings
 from utils.logger import log
@@ -199,7 +199,36 @@ class MultiTimeframeStrategy(BaseStrategy):
                          f"Entry: {mtf_result.get('entry_signal')}")
                 continue
             
-            # Aligned! Create signal
+            # Refined filters: ADX and Volume
+            try:
+                # Use entry timeframe for confirmed signals
+                resolution = getattr(settings.trading, 'candle_interval', '15m')
+                candles = self.client.get_candles(symbol=symbol, resolution=resolution)
+                
+                if len(candles) >= 30:
+                    high = np.array([c.high for c in candles])
+                    low = np.array([c.low for c in candles])
+                    close = np.array([c.close for c in candles])
+                    volume = np.array([c.volume for c in candles])
+                    
+                    # ADX filter (Trend strength)
+                    is_trending, adx = self.analyzer.is_trending(high, low, close, min_adx=25.0)
+                    if not is_trending:
+                        log.debug(f"MTF: {symbol} rejected - ADX {adx:.1f} < 25 (weak trend)")
+                        continue
+                        
+                    # Volume filter (Confirmation)
+                    vol_result = self.analyzer.calculate_volume_signal(volume, close)
+                    if vol_result.signal == IndicatorSignal.NEUTRAL:
+                        log.debug(f"MTF: {symbol} rejected - weak volume confirmation")
+                        continue
+                        
+                    log.info(f"MTF filters passed for {symbol}: ADX={adx:.1f}, Vol={vol_result.description}")
+            except Exception as e:
+                log.warning(f"Failed to apply filters for {symbol}: {e}")
+                continue
+            
+            # Aligned and filtered! Create signal
             signal = self._create_entry_signal(symbol, mtf_result, capital_per_trade)
             if signal:
                 signals.append(signal)
@@ -281,88 +310,106 @@ class MultiTimeframeStrategy(BaseStrategy):
                 ticker = self.client.get_ticker(symbol)
                 current_price = float(ticker.get('mark_price', 0))
                 
-                # Get current ATR
-                candles = self.client.get_candles(symbol=symbol, resolution=self.entry_tf)
-                high = np.array([c.high for c in candles])
-                low = np.array([c.low for c in candles])
-                close = np.array([c.close for c in candles])
-                current_atr = self.analyzer.calculate_atr(high, low, close)
+                if current_price == 0:
+                    continue
                 
-                # Update trailing stop
-                trailing_stop = pos.update_trailing(current_price, current_atr)
+                # Update trailing stop in memory
+                # We assume regular ATR updates or lookback; using stored entry ATR for consistency or fetch new
+                # Ideally, use current volatility
                 
-                # Check exit conditions
-                should_exit = False
-                exit_reason = ""
+                # Check Profit Ladder (Partial Exits)
+                # Logic: If price reaches R-multiples, exit % and move stop
+                ladder_signal = self._check_profit_ladder(pos, current_price)
+                if ladder_signal:
+                    signals.append(ladder_signal)
+                    # If we took partial profit, we should probably update the stop too
+                    # but trailing logic handles that below.
                 
-                if pos.side == 'long':
-                    # Check trailing stop
-                    if current_price <= trailing_stop and trailing_stop > 0:
-                        should_exit = True
-                        exit_reason = f"Trailing stop hit at {trailing_stop:.2f}"
-                    # Check initial stop loss
-                    elif current_price <= pos.stop_loss:
-                        should_exit = True
-                        exit_reason = f"Stop loss hit at {pos.stop_loss:.2f}"
-                    # Check take profit
-                    elif current_price >= pos.take_profit:
-                        should_exit = True
-                        exit_reason = f"Take profit hit at {pos.take_profit:.2f}"
-                else:
-                    # Short position
-                    if current_price >= trailing_stop and trailing_stop > 0:
-                        should_exit = True
-                        exit_reason = f"Trailing stop hit at {trailing_stop:.2f}"
-                    elif current_price >= pos.stop_loss:
-                        should_exit = True
-                        exit_reason = f"Stop loss hit at {pos.stop_loss:.2f}"
-                    elif current_price <= pos.take_profit:
-                        should_exit = True
-                        exit_reason = f"Take profit hit at {pos.take_profit:.2f}"
+                # Update Trailing Stop
+                old_stop = pos.current_trailing_stop if pos.current_trailing_stop > 0 else pos.stop_loss
+                trail_mult = getattr(settings.enhanced_risk, 'atr_trailing_multiplier', 1.5)
+                pos.update_trailing(current_price, pos.atr_at_entry, multiplier=trail_mult)
+                new_stop = pos.current_trailing_stop
                 
-                # Check for trend reversal on higher timeframe
-                if not should_exit:
-                    htf_candles = self.client.get_candles(
-                        symbol=symbol, resolution=self.higher_tf
-                    )
-                    htf_close = np.array([c.close for c in htf_candles])
-                    htf_trend = self.analyzer.get_trend_direction(htf_close)
+                # If stop moved favorably significantly, update on exchange
+                # ... (rest of the logic)
+                
+                if new_stop != old_stop and new_stop > 0:
+                    product_id = self.client.get_product_id(symbol)
                     
-                    if pos.side == 'long' and htf_trend == 'bearish':
-                        should_exit = True
-                        exit_reason = f"Higher timeframe trend reversed to bearish"
-                    elif pos.side == 'short' and htf_trend == 'bullish':
-                        should_exit = True
-                        exit_reason = f"Higher timeframe trend reversed to bullish"
-                
-                if should_exit:
-                    direction = SignalDirection.CLOSE_LONG if pos.side == 'long' \
-                               else SignalDirection.CLOSE_SHORT
-                    
-                    pnl = (current_price - pos.entry_price) * pos.size
-                    if pos.side == 'short':
-                        pnl = -pnl
-                    
-                    signals.append(StrategySignal(
-                        strategy_type=self.strategy_type,
-                        symbol=symbol,
-                        direction=direction,
-                        confidence=0.95,
-                        entry_price=current_price,
-                        position_size=pos.size,
-                        reason=exit_reason,
-                        metadata={
-                            'pnl': pnl,
-                            'entry_price': pos.entry_price,
-                            'exit_price': current_price,
-                            'trailing_stop_used': trailing_stop > 0
-                        }
-                    ))
-                    
+                    # Ensure we don't move stop to the wrong side of price (safety)
+                    if (pos.side == 'long' and new_stop >= current_price) or \
+                       (pos.side == 'short' and new_stop <= current_price):
+                        log.warning(f"Trailing stop calculation error: Stop {new_stop} crosses Price {current_price}")
+                        continue
+
+                    try:
+                        self.client.update_bracket_order(
+                            product_id=product_id,
+                            stop_loss_price=new_stop,
+                            take_profit_price=pos.take_profit # Keep original TP or None
+                        )
+                        log.info(f"Updated Trailing Stop for {symbol}: {old_stop} -> {new_stop}")
+                    except Exception as e:
+                        log.error(f"Failed to update bracket for {symbol}: {e}")
+            
             except Exception as e:
-                log.error(f"Error checking exit for {symbol}: {e}")
-        
+                log.error(f"Error managing position for {symbol}: {e}")
+                
         return signals
+
+    def _create_entry_signal(self, symbol: str, mtf_result: dict,
+                             capital: float) -> Optional[StrategySignal]:
+        """Create an aligned entry signal."""
+        try:
+            current_price = mtf_result.get('current_price', 0)
+            atr = mtf_result.get('atr', 0)
+            htf_trend = mtf_result.get('higher_tf_trend')
+            entry_confidence = mtf_result.get('entry_confidence', 0.5)
+            
+            if current_price <= 0:
+                return None
+                
+            # Calculate position size (risk based 1-2%)
+            # Strategy Manager might override, but we provide a suggestions
+            risk_pct = getattr(settings.enhanced_risk, 'max_risk_per_trade', 0.02)
+            
+            # Stop loss calculation (2x ATR)
+            risk_distance = atr * 2
+            
+            if htf_trend == 'bullish':
+                stop_loss = current_price - risk_distance
+                take_profit = current_price + (risk_distance * 2)
+                direction = SignalDirection.LONG
+            else:
+                stop_loss = current_price + risk_distance
+                take_profit = current_price - (risk_distance * 2)
+                direction = SignalDirection.SHORT
+                
+            # Calculate Position Size
+            # Risk Amount = Capital * Risk%
+            # Size = Risk Amount / Risk Dist
+            risk_amount = capital * risk_pct
+            size = risk_amount / risk_distance if risk_distance > 0 else 0
+            
+            return StrategySignal(
+                strategy_type=self.strategy_type,
+                symbol=symbol,
+                direction=direction,
+                confidence=entry_confidence,
+                entry_price=current_price,
+                position_size=size,
+                stop_loss=stop_loss,
+                take_profit=take_profit,
+                reason=f"MTF Aligned: {htf_trend} + {mtf_result.get('entry_signal')}",
+                metadata={
+                    'atr': atr,
+                    'htf_trend': htf_trend
+                }
+            )
+        except Exception as e:
+            log.error(f"Error creating signal for {symbol}: {e}")
+            return None
     
     def _check_profit_ladder(self, pos: MTFPosition, 
                              current_price: float) -> Optional[StrategySignal]:
@@ -391,6 +438,9 @@ class MultiTimeframeStrategy(BaseStrategy):
         
         if should_exit:
             exit_size = pos.size * exit_pct
+            
+            # Update state before returning signal to prevent duplicates
+            pos.partial_exits += 1
             
             return StrategySignal(
                 strategy_type=self.strategy_type,

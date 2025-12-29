@@ -84,20 +84,56 @@ class TradeExecutor:
         """Execute the actual order on the exchange."""
         
         if decision.action == TradeAction.OPEN_LONG:
-            return self.client.place_order(
+            entry_order = self.client.place_order(
                 symbol=decision.symbol,
                 side=OrderSide.BUY,
                 size=decision.position_size,
                 order_type=OrderType.MARKET
             )
+            
+            # Place bracket order for SL/TP (exchange-side protection)
+            if entry_order and decision.stop_loss:
+                try:
+                    product_id = self.client.get_product_id(decision.symbol)
+                    trail_amount = decision.atr * 2 if hasattr(decision, 'atr') and decision.atr else None
+                    
+                    self.client.place_bracket_order(
+                        product_id=product_id,
+                        stop_loss_price=decision.stop_loss,
+                        take_profit_price=decision.take_profit,
+                        trail_amount=trail_amount
+                    )
+                    log.info(f"Bracket order placed: SL={decision.stop_loss}, TP={decision.take_profit}")
+                except Exception as e:
+                     log.error(f"Failed to place bracket order: {e}")
+            
+            return entry_order
         
         elif decision.action == TradeAction.OPEN_SHORT:
-            return self.client.place_order(
+            entry_order = self.client.place_order(
                 symbol=decision.symbol,
                 side=OrderSide.SELL,
                 size=decision.position_size,
                 order_type=OrderType.MARKET
             )
+            
+            # Place bracket order for SL/TP
+            if entry_order and decision.stop_loss:
+                try:
+                     product_id = self.client.get_product_id(decision.symbol)
+                     trail_amount = decision.atr * 2 if hasattr(decision, 'atr') and decision.atr else None
+                     
+                     self.client.place_bracket_order(
+                        product_id=product_id,
+                        stop_loss_price=decision.stop_loss,
+                        take_profit_price=decision.take_profit,
+                        trail_amount=trail_amount
+                     )
+                     log.info(f"Bracket order placed: SL={decision.stop_loss}, TP={decision.take_profit}")
+                except Exception as e:
+                     log.error(f"Failed to place bracket order: {e}")
+            
+            return entry_order
         
         elif decision.action in [TradeAction.CLOSE_LONG, TradeAction.CLOSE_SHORT]:
             return self.client.close_position(decision.symbol)

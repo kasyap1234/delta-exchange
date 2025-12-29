@@ -3,6 +3,8 @@
 # API and HTTP
 requests>=2.31.0
 aiohttp>=3.9.0
+websockets>=12.0
+
 
 # Technical Analysis
 TA-Lib>=0.4.28

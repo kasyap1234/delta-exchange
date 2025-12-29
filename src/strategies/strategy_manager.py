@@ -3,16 +3,20 @@ Strategy Manager Module.
 Orchestrates multiple trading strategies with capital allocation and risk management.
 """
 
+
 from typing import List, Dict, Optional, Any
 from dataclasses import dataclass, field
 from datetime import datetime, date
 from enum import Enum
+import threading
+import asyncio
 
 from src.strategies.base_strategy import BaseStrategy, StrategySignal, StrategyType
 from src.strategies.funding_arbitrage import FundingArbitrageStrategy
 from src.strategies.correlated_hedging import CorrelatedHedgingStrategy
 from src.strategies.multi_timeframe import MultiTimeframeStrategy
 from src.delta_client import DeltaExchangeClient, Position
+from src.websocket_client import DeltaWebSocketClient
 from config.settings import settings
 from utils.logger import log
 
@@ -61,6 +65,7 @@ class StrategyManager:
     3. Enforce daily loss limits
     4. Track overall performance
     5. Manage strategy lifecycle
+    6. Handle real-time WebSocket updates
     
     Capital Allocation (default):
     - Tier 1 (Funding Arbitrage): 40%
@@ -98,6 +103,11 @@ class StrategyManager:
         
         # State
         self.state = TradingState.ACTIVE
+        
+        # WebSocket Client
+        self.ws_client = DeltaWebSocketClient()
+        self.ws_thread = None
+        self._start_websocket_thread()
         self.today_stats: Optional[DailyStats] = None
         
         # Initialize strategies
@@ -107,6 +117,66 @@ class StrategyManager:
         log.info(f"StrategyManager initialized with {len(self.strategies)} strategies")
         log.info(f"Allocation: {self._format_allocation()}")
         log.info(f"Daily loss limit: {daily_loss_limit:.1%}")
+
+    def _start_websocket_thread(self) -> None:
+        """Start the WebSocket client in a separate thread."""
+        self.ws_thread = threading.Thread(target=self._run_websocket_loop, daemon=True)
+        self.ws_thread.start()
+        log.info("WebSocket thread started")
+
+    def _run_websocket_loop(self) -> None:
+        """Run the asyncio event loop for WebSocket in a thread."""
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        # Setup callbacks
+        loop.run_until_complete(self._setup_websocket_subscriptions())
+        
+        # Run the connection
+        try:
+            loop.run_until_complete(self.ws_client.connect())
+        except Exception as e:
+            log.error(f"WebSocket loop error: {e}")
+
+    async def _setup_websocket_subscriptions(self) -> None:
+        """Subscribe to real-time channels."""
+        # Subscribe to balance/position updates for risk management
+        await self.ws_client.subscribe_positions(self._on_ws_positions_update)
+        
+        # Subscribe to order updates for execution tracking
+        await self.ws_client.subscribe_orders(self._on_ws_orders_update)
+        
+        # Subscribe to funding rates for Tier 1 strategy
+        symbols = getattr(settings.trading, 'trading_pairs', ['BTCUSDT', 'ETHUSDT'])
+        await self.ws_client.subscribe_funding_rate(symbols, self._on_ws_funding_update)
+        
+        # Subscribe to portfolio margin for liquidation alerts (Phase 4.2)
+        await self.ws_client.subscribe('portfolio_margins', callback=self._on_ws_margin_update)
+        
+        log.info("WebSocket subscriptions set up")
+
+    def _on_ws_positions_update(self, data: Dict[str, Any]) -> None:
+        """Handle real-time position updates."""
+        # In a production bot, we'd update our internal state immediately
+        # and maybe trigger emergency exits if SL/TP hit on exchange.
+        log.debug(f"WS Position Update: {data}")
+
+    def _on_ws_orders_update(self, data: Dict[str, Any]) -> None:
+        """Handle real-time order updates."""
+        log.debug(f"WS Order Update: {data}")
+
+    def _on_ws_funding_update(self, data: Dict[str, Any]) -> None:
+        """Handle real-time funding rate updates."""
+        # Tier 1 strategy can react instantly to funding changes
+        log.debug(f"WS Funding Update: {data}")
+
+    def _on_ws_margin_update(self, data: Dict[str, Any]) -> None:
+        """Handle real-time portfolio margin updates."""
+        # Phase 4.2: Liquidation risk alerts
+        if data.get('liquidation_risk'):
+            log.critical(f"LIQUIDATION RISK ALERT! Data: {data}")
+            # In emergency, we could trigger self._emergency_reduce_positions()
+
     
     def _initialize_strategies(self) -> None:
         """Initialize all strategy instances."""

@@ -129,6 +129,26 @@ class EnhancedRiskConfig:
         {'r_multiple': 2.0, 'exit_pct': 0.25},  # 25% at 2R
         # Remaining 50% trails
     ])
+    
+    # --- NEW: Phase 1 Risk Management Core ---
+    # Risk per trade (industry standard: 1-2%)
+    max_risk_per_trade: float = field(default_factory=lambda: 
+        float(os.getenv("MAX_RISK_PER_TRADE", "0.02")))  # 2% max risk
+    
+    # Kelly Criterion settings
+    use_kelly_sizing: bool = field(default_factory=lambda: 
+        os.getenv("USE_KELLY_SIZING", "true").lower() == "true")
+    kelly_fraction: float = field(default_factory=lambda: 
+        float(os.getenv("KELLY_FRACTION", "0.5")))  # Half-Kelly for safety
+    
+    # Maximum position as % of account (hard cap)
+    max_position_pct: float = field(default_factory=lambda: 
+        float(os.getenv("MAX_POSITION_PCT", "0.20")))  # Never more than 20%
+    
+    # Volatility-adjusted sizing
+    reduce_size_high_volatility: bool = field(default_factory=lambda: 
+        os.getenv("REDUCE_SIZE_HIGH_VOL", "true").lower() == "true")
+    atr_size_multiplier: float = 1.5  # Reduce size if ATR > 1.5x average
 
 
 @dataclass
@@ -138,19 +158,19 @@ class TradingConfig:
     trading_pairs: List[str] = field(default_factory=lambda: 
         os.getenv("TRADING_PAIRS", "BTCUSDT,ETHUSDT,SOLUSDT").split(","))
     
-    # Risk management - Widened stops for leverage trading
+    # Risk management - More conservative defaults for sustainability
     max_capital_per_trade: float = field(default_factory=lambda: 
-        float(os.getenv("MAX_CAPITAL_PER_TRADE", "0.25")))  # 25% (was 10%)
+        float(os.getenv("MAX_CAPITAL_PER_TRADE", "0.15")))  # 15% (was 25%)
     stop_loss_pct: float = field(default_factory=lambda: 
-        float(os.getenv("STOP_LOSS_PCT", "0.05")))  # 5% (was 2% - wider to avoid whipsaws)
+        float(os.getenv("STOP_LOSS_PCT", "0.03")))  # 3% (was 5% - ATR stops preferred)
     take_profit_pct: float = field(default_factory=lambda: 
-        float(os.getenv("TAKE_PROFIT_PCT", "0.10")))  # 10% (was 4% - 2:1 R:R maintained)
+        float(os.getenv("TAKE_PROFIT_PCT", "0.06")))  # 6% (was 10% - 2:1 R:R maintained)
     max_open_positions: int = field(default_factory=lambda: 
-        int(os.getenv("MAX_OPEN_POSITIONS", "3")))
+        int(os.getenv("MAX_OPEN_POSITIONS", "5")))  # Increased for diversification
     
     # Leverage setting (Delta Exchange supports up to 100x)
     leverage: int = field(default_factory=lambda: 
-        int(os.getenv("LEVERAGE", "10")))  # 10x leverage (increased for higher returns)
+        int(os.getenv("LEVERAGE", "5")))  # Reduced to 5x (was 10x) for lower risk
     
     # Candle settings
     candle_interval: str = field(default_factory=lambda: 
