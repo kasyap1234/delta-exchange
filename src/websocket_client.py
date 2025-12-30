@@ -131,7 +131,7 @@ class DeltaWebSocketClient:
         msg_type = data.get('type')
         
         if msg_type == 'auth':
-            if data.get('success', False):
+            if data.get('success', False) or data.get('status') == 'success':
                 self.authenticated = True
                 log.info("WebSocket Authenticated Successfully")
             else:

@@ -74,7 +74,7 @@ class CorrelatedHedgingStrategy(BaseStrategy):
         
         # Trading pairs configuration
         self.trading_pairs = getattr(settings.trading, 'trading_pairs', 
-                                     ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'])
+                                     ['BTCUSD', 'ETHUSD', 'SOLUSD'])
     
     @property
     def strategy_type(self) -> StrategyType:
@@ -176,7 +176,10 @@ class CorrelatedHedgingStrategy(BaseStrategy):
                 resolution=getattr(settings.trading, 'candle_interval', '15m')
             )
             
+            log.info(f"[CORR_HEDGE] {symbol}: Received {len(candles)} candles")
+            
             if len(candles) < 50:
+                log.info(f"[CORR_HEDGE] {symbol}: Insufficient candles ({len(candles)} < 50)")
                 return None
             
             close = np.array([c.close for c in candles])
@@ -214,12 +217,12 @@ class CorrelatedHedgingStrategy(BaseStrategy):
                 resolution='4h'
             )
             if higher_tf_candles and len(higher_tf_candles) >= 20:
+                # Use standardized trend direction (EMA 50/200 cross)
+                # higher_tf_candles are 4h candles
                 closes = np.array([c.close for c in higher_tf_candles])
-                # Use 20 EMA for trend direction
-                ema_20 = self.analyzer._ema(closes, 20)
-                current_price_htf = closes[-1]
-                higher_tf_trend = "bullish" if current_price_htf > ema_20[-1] else "bearish"
-                log.info(f"  4H Trend Check: Price=${current_price_htf:.2f}, EMA20=${ema_20[-1]:.2f} → {higher_tf_trend.upper()}")
+                higher_tf_trend = self.analyzer.get_trend_direction(closes)
+                
+                log.info(f"  4H Trend Check: {higher_tf_trend.upper()}")
             else:
                 higher_tf_trend = "unknown"
                 log.warning(f"  4H Trend Check: Insufficient candles ({len(higher_tf_candles) if higher_tf_candles else 0})")
@@ -243,7 +246,7 @@ class CorrelatedHedgingStrategy(BaseStrategy):
             return None
         
         # ===== CRITICAL: Reject counter-trend trades =====
-        if higher_tf_trend != "unknown" and higher_tf_trend != signal_trend:
+        if higher_tf_trend not in ["unknown", "neutral"] and higher_tf_trend != signal_trend:
             log.info(f"  → REJECTED: Signal ({signal_trend}) conflicts with 4h trend ({higher_tf_trend})")
             return None
         

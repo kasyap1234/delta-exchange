@@ -102,7 +102,7 @@ class TradingBot:
             return False
         
         # Initialize strategy and executor
-        self.strategy = TradingStrategy(self.client)
+        self.strategy = TradingStrategy(self.client, dry_run=self.dry_run)
         self.executor = TradeExecutor(self.client, dry_run=self.dry_run)
         
         log.info("Initialization complete!")
@@ -127,7 +127,13 @@ class TradingBot:
         try:
             # Get account balance
             balance_data = self.client.get_wallet_balance()
-            available_balance = float(balance_data.get('available_balance', 0))
+            # balance_data is a list of asset balances, find USDT
+            available_balance = 0.0
+            if isinstance(balance_data, list):
+                for asset in balance_data:
+                    if asset.get('asset_symbol') == 'USD':
+                        available_balance = float(asset.get('available_balance', 0))
+                        break
             log.info(f"Available Balance: ${available_balance:.2f}")
             
             # Get open positions
@@ -137,6 +143,22 @@ class TradingBot:
             for pos in positions:
                 log.info(f"  {pos.product_symbol}: {pos.size} @ {pos.entry_price:.2f} "
                          f"(PnL: {pos.unrealized_pnl:.2f})")
+            
+            # Check for hedging opportunities (auto-protect losing positions)
+            log.info("Evaluating hedging opportunities...")
+            new_hedges = self.strategy.evaluate_hedging_opportunities(positions)
+            if new_hedges:
+                log.info(f"Created {len(new_hedges)} new hedge position(s)")
+                for hedge in new_hedges:
+                    log.info(f"  {hedge.primary_side.upper()} {hedge.primary_symbol} "
+                             f"hedged with {hedge.hedge_side.upper()} {hedge.hedge_symbol} "
+                             f"(ratio: {hedge.hedge_ratio:.0%})")
+            
+            # Log hedge status
+            hedge_status = self.strategy.get_hedge_status()
+            if hedge_status['active_positions'] > 0:
+                log.info(f"Active hedged positions: {hedge_status['active_positions']}, "
+                         f"Net exposure: ${hedge_status['total_exposure']:.2f}")
             
             # Analyze all pairs
             log.info("Analyzing markets...")

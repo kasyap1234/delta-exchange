@@ -1,0 +1,210 @@
+/Users/kasyap/Documents/projects/delta-exchange/venv/lib/python3.9/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+[32m2025-12-30 00:17:35[0m | [1mINFO    [0m | [36mutils.logger[0m:[36msetup_logger[0m:[36m49[0m - [1mLogger initialized[0m
+[32m2025-12-30 00:17:36[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m90[0m - [1m======================================================================[0m
+[32m2025-12-30 00:17:36[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m91[0m - [1mDelta Exchange Multi-Strategy Trading Bot v2.0[0m
+[32m2025-12-30 00:17:36[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m92[0m - [1m======================================================================[0m
+[32m2025-12-30 00:17:36[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m101[0m - [1mEnvironment: testnet[0m
+[32m2025-12-30 00:17:36[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m102[0m - [1mRegion: india[0m
+[32m2025-12-30 00:17:36[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m103[0m - [1mBase URL: https://cdn-ind.testnet.deltaex.org[0m
+[32m2025-12-30 00:17:36[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m104[0m - [1mTrading Pairs: ['BTCUSD', 'ETHUSD', 'SOLUSD'][0m
+[32m2025-12-30 00:17:36[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m105[0m - [1mDry Run: True[0m
+[32m2025-12-30 00:17:36[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m106[0m - [1mPaper Trade: True[0m
+[32m2025-12-30 00:17:36[0m | [1mINFO    [0m | [36msrc.paper_trader[0m:[36m__init__[0m:[36m258[0m - [1m[PAPER] Paper Trading Simulator initialized[0m
+[32m2025-12-30 00:17:36[0m | [1mINFO    [0m | [36msrc.utils.persistence_manager[0m:[36mload_state[0m:[36m92[0m - [1mNo persistence file found at data/paper_trade_state.json[0m
+[32m2025-12-30 00:17:36[0m | [1mINFO    [0m | [36msrc.paper_trader[0m:[36m__init__[0m:[36m264[0m - [1m[PAPER] ✨ Starting fresh session[0m
+[32m2025-12-30 00:17:36[0m | [1mINFO    [0m | [36msrc.paper_trader[0m:[36m__init__[0m:[36m266[0m - [1m[PAPER]   Balance: $200.00[0m
+[32m2025-12-30 00:17:36[0m | [1mINFO    [0m | [36msrc.paper_trader[0m:[36m__init__[0m:[36m267[0m - [1m[PAPER]   Leverage: 5x[0m
+[32m2025-12-30 00:17:36[0m | [1mINFO    [0m | [36msrc.paper_trader[0m:[36m__init__[0m:[36m268[0m - [1m[PAPER]   Fee Rate: maker (0.04%)[0m
+[32m2025-12-30 00:17:36[0m | [1mINFO    [0m | [36msrc.paper_trader[0m:[36m__init__[0m:[36m270[0m - [1m[PAPER]   ⚠️  With 5x leverage, gains AND losses are amplified![0m
+[32m2025-12-30 00:17:36[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m130[0m - [1mPaper Trading enabled with $200.00 @ 5x leverage[0m
+[32m2025-12-30 00:17:36[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m133[0m - [1m----------------------------------------[0m
+[32m2025-12-30 00:17:36[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m134[0m - [1mStrategy Allocation:[0m
+[32m2025-12-30 00:17:36[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m135[0m - [1m  Tier 1 (Funding Arbitrage): 40%[0m
+[32m2025-12-30 00:17:36[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m136[0m - [1m  Tier 2 (Correlated Hedging): 40%[0m
+[32m2025-12-30 00:17:36[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m137[0m - [1m  Tier 3 (Multi-Timeframe): 20%[0m
+[32m2025-12-30 00:17:36[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m140[0m - [1m----------------------------------------[0m
+[32m2025-12-30 00:17:36[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m141[0m - [1mRisk Management:[0m
+[32m2025-12-30 00:17:36[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m142[0m - [1m  Daily Loss Limit: 3.0%[0m
+[32m2025-12-30 00:17:36[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m143[0m - [1m  ATR Stop Multiplier: 2.0x[0m
+[32m2025-12-30 00:17:36[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m144[0m - [1m  Trailing Stops: True[0m
+[32m2025-12-30 00:17:36[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m145[0m - [1m  Profit Ladder: True[0m
+[32m2025-12-30 00:17:36[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m148[0m - [1m----------------------------------------[0m
+[32m2025-12-30 00:17:36[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m149[0m - [1mInitializing Delta Exchange client...[0m
+[32m2025-12-30 00:17:36[0m | [1mINFO    [0m | [36msrc.delta_client[0m:[36m__init__[0m:[36m187[0m - [1mHybrid mode: Market data from https://api.india.delta.exchange, Trading on testnet[0m
+[32m2025-12-30 00:17:36[0m | [1mINFO    [0m | [36msrc.delta_client[0m:[36m__init__[0m:[36m202[0m - [1mDelta Exchange client initialized for https://cdn-ind.testnet.deltaex.org[0m
+[32m2025-12-30 00:17:36[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m153[0m - [1mTesting API connection...[0m
+[32m2025-12-30 00:17:39[0m | [1mINFO    [0m | [36msrc.delta_client[0m:[36mtest_connection[0m:[36m791[0m - [1mPublic API OK - 564 products available[0m
+[32m2025-12-30 00:17:39[0m | [31m[1mERROR   [0m | [36msrc.delta_client[0m:[36m_request[0m:[36m283[0m - [31m[1mAPI Error: 401 - Unknown error[0m
+[32m2025-12-30 00:17:39[0m | [31m[1mERROR   [0m | [36msrc.delta_client[0m:[36mtest_connection[0m:[36m799[0m - [31m[1mConnection test failed: Delta API Error: Unknown error[0m
+[32m2025-12-30 00:17:39[0m | [31m[1mERROR   [0m | [36m__main__[0m:[36minitialize[0m:[36m155[0m - [31m[1mFailed to connect to Delta Exchange API[0m
+
+--- Cycle 1/5 ---
+/Users/kasyap/Documents/projects/delta-exchange/venv/lib/python3.9/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+[32m2025-12-30 00:17:42[0m | [1mINFO    [0m | [36mutils.logger[0m:[36msetup_logger[0m:[36m49[0m - [1mLogger initialized[0m
+[32m2025-12-30 00:17:42[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m90[0m - [1m======================================================================[0m
+[32m2025-12-30 00:17:42[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m91[0m - [1mDelta Exchange Multi-Strategy Trading Bot v2.0[0m
+[32m2025-12-30 00:17:42[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m92[0m - [1m======================================================================[0m
+[32m2025-12-30 00:17:42[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m101[0m - [1mEnvironment: testnet[0m
+[32m2025-12-30 00:17:42[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m102[0m - [1mRegion: india[0m
+[32m2025-12-30 00:17:42[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m103[0m - [1mBase URL: https://cdn-ind.testnet.deltaex.org[0m
+[32m2025-12-30 00:17:42[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m104[0m - [1mTrading Pairs: ['BTCUSD', 'ETHUSD', 'SOLUSD'][0m
+[32m2025-12-30 00:17:42[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m105[0m - [1mDry Run: True[0m
+[32m2025-12-30 00:17:42[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m106[0m - [1mPaper Trade: True[0m
+[32m2025-12-30 00:17:42[0m | [1mINFO    [0m | [36msrc.paper_trader[0m:[36m__init__[0m:[36m258[0m - [1m[PAPER] Paper Trading Simulator initialized[0m
+[32m2025-12-30 00:17:42[0m | [1mINFO    [0m | [36msrc.utils.persistence_manager[0m:[36mload_state[0m:[36m92[0m - [1mNo persistence file found at data/paper_trade_state.json[0m
+[32m2025-12-30 00:17:42[0m | [1mINFO    [0m | [36msrc.paper_trader[0m:[36m__init__[0m:[36m264[0m - [1m[PAPER] ✨ Starting fresh session[0m
+[32m2025-12-30 00:17:42[0m | [1mINFO    [0m | [36msrc.paper_trader[0m:[36m__init__[0m:[36m266[0m - [1m[PAPER]   Balance: $200.00[0m
+[32m2025-12-30 00:17:42[0m | [1mINFO    [0m | [36msrc.paper_trader[0m:[36m__init__[0m:[36m267[0m - [1m[PAPER]   Leverage: 5x[0m
+[32m2025-12-30 00:17:42[0m | [1mINFO    [0m | [36msrc.paper_trader[0m:[36m__init__[0m:[36m268[0m - [1m[PAPER]   Fee Rate: maker (0.04%)[0m
+[32m2025-12-30 00:17:42[0m | [1mINFO    [0m | [36msrc.paper_trader[0m:[36m__init__[0m:[36m270[0m - [1m[PAPER]   ⚠️  With 5x leverage, gains AND losses are amplified![0m
+[32m2025-12-30 00:17:42[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m130[0m - [1mPaper Trading enabled with $200.00 @ 5x leverage[0m
+[32m2025-12-30 00:17:42[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m133[0m - [1m----------------------------------------[0m
+[32m2025-12-30 00:17:42[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m134[0m - [1mStrategy Allocation:[0m
+[32m2025-12-30 00:17:42[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m135[0m - [1m  Tier 1 (Funding Arbitrage): 40%[0m
+[32m2025-12-30 00:17:42[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m136[0m - [1m  Tier 2 (Correlated Hedging): 40%[0m
+[32m2025-12-30 00:17:42[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m137[0m - [1m  Tier 3 (Multi-Timeframe): 20%[0m
+[32m2025-12-30 00:17:42[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m140[0m - [1m----------------------------------------[0m
+[32m2025-12-30 00:17:42[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m141[0m - [1mRisk Management:[0m
+[32m2025-12-30 00:17:42[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m142[0m - [1m  Daily Loss Limit: 3.0%[0m
+[32m2025-12-30 00:17:42[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m143[0m - [1m  ATR Stop Multiplier: 2.0x[0m
+[32m2025-12-30 00:17:42[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m144[0m - [1m  Trailing Stops: True[0m
+[32m2025-12-30 00:17:42[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m145[0m - [1m  Profit Ladder: True[0m
+[32m2025-12-30 00:17:42[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m148[0m - [1m----------------------------------------[0m
+[32m2025-12-30 00:17:42[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m149[0m - [1mInitializing Delta Exchange client...[0m
+[32m2025-12-30 00:17:42[0m | [1mINFO    [0m | [36msrc.delta_client[0m:[36m__init__[0m:[36m187[0m - [1mHybrid mode: Market data from https://api.india.delta.exchange, Trading on testnet[0m
+[32m2025-12-30 00:17:42[0m | [1mINFO    [0m | [36msrc.delta_client[0m:[36m__init__[0m:[36m202[0m - [1mDelta Exchange client initialized for https://cdn-ind.testnet.deltaex.org[0m
+[32m2025-12-30 00:17:42[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m153[0m - [1mTesting API connection...[0m
+[32m2025-12-30 00:17:43[0m | [1mINFO    [0m | [36msrc.delta_client[0m:[36mtest_connection[0m:[36m791[0m - [1mPublic API OK - 564 products available[0m
+[32m2025-12-30 00:17:44[0m | [31m[1mERROR   [0m | [36msrc.delta_client[0m:[36m_request[0m:[36m283[0m - [31m[1mAPI Error: 401 - Unknown error[0m
+[32m2025-12-30 00:17:44[0m | [31m[1mERROR   [0m | [36msrc.delta_client[0m:[36mtest_connection[0m:[36m799[0m - [31m[1mConnection test failed: Delta API Error: Unknown error[0m
+[32m2025-12-30 00:17:44[0m | [31m[1mERROR   [0m | [36m__main__[0m:[36minitialize[0m:[36m155[0m - [31m[1mFailed to connect to Delta Exchange API[0m
+
+--- Cycle 2/5 ---
+/Users/kasyap/Documents/projects/delta-exchange/venv/lib/python3.9/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+[32m2025-12-30 00:17:46[0m | [1mINFO    [0m | [36mutils.logger[0m:[36msetup_logger[0m:[36m49[0m - [1mLogger initialized[0m
+[32m2025-12-30 00:17:46[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m90[0m - [1m======================================================================[0m
+[32m2025-12-30 00:17:46[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m91[0m - [1mDelta Exchange Multi-Strategy Trading Bot v2.0[0m
+[32m2025-12-30 00:17:46[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m92[0m - [1m======================================================================[0m
+[32m2025-12-30 00:17:46[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m101[0m - [1mEnvironment: testnet[0m
+[32m2025-12-30 00:17:46[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m102[0m - [1mRegion: india[0m
+[32m2025-12-30 00:17:46[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m103[0m - [1mBase URL: https://cdn-ind.testnet.deltaex.org[0m
+[32m2025-12-30 00:17:46[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m104[0m - [1mTrading Pairs: ['BTCUSD', 'ETHUSD', 'SOLUSD'][0m
+[32m2025-12-30 00:17:46[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m105[0m - [1mDry Run: True[0m
+[32m2025-12-30 00:17:46[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m106[0m - [1mPaper Trade: True[0m
+[32m2025-12-30 00:17:46[0m | [1mINFO    [0m | [36msrc.paper_trader[0m:[36m__init__[0m:[36m258[0m - [1m[PAPER] Paper Trading Simulator initialized[0m
+[32m2025-12-30 00:17:46[0m | [1mINFO    [0m | [36msrc.utils.persistence_manager[0m:[36mload_state[0m:[36m92[0m - [1mNo persistence file found at data/paper_trade_state.json[0m
+[32m2025-12-30 00:17:46[0m | [1mINFO    [0m | [36msrc.paper_trader[0m:[36m__init__[0m:[36m264[0m - [1m[PAPER] ✨ Starting fresh session[0m
+[32m2025-12-30 00:17:46[0m | [1mINFO    [0m | [36msrc.paper_trader[0m:[36m__init__[0m:[36m266[0m - [1m[PAPER]   Balance: $200.00[0m
+[32m2025-12-30 00:17:46[0m | [1mINFO    [0m | [36msrc.paper_trader[0m:[36m__init__[0m:[36m267[0m - [1m[PAPER]   Leverage: 5x[0m
+[32m2025-12-30 00:17:46[0m | [1mINFO    [0m | [36msrc.paper_trader[0m:[36m__init__[0m:[36m268[0m - [1m[PAPER]   Fee Rate: maker (0.04%)[0m
+[32m2025-12-30 00:17:46[0m | [1mINFO    [0m | [36msrc.paper_trader[0m:[36m__init__[0m:[36m270[0m - [1m[PAPER]   ⚠️  With 5x leverage, gains AND losses are amplified![0m
+[32m2025-12-30 00:17:46[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m130[0m - [1mPaper Trading enabled with $200.00 @ 5x leverage[0m
+[32m2025-12-30 00:17:46[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m133[0m - [1m----------------------------------------[0m
+[32m2025-12-30 00:17:46[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m134[0m - [1mStrategy Allocation:[0m
+[32m2025-12-30 00:17:46[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m135[0m - [1m  Tier 1 (Funding Arbitrage): 40%[0m
+[32m2025-12-30 00:17:46[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m136[0m - [1m  Tier 2 (Correlated Hedging): 40%[0m
+[32m2025-12-30 00:17:46[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m137[0m - [1m  Tier 3 (Multi-Timeframe): 20%[0m
+[32m2025-12-30 00:17:46[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m140[0m - [1m----------------------------------------[0m
+[32m2025-12-30 00:17:46[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m141[0m - [1mRisk Management:[0m
+[32m2025-12-30 00:17:46[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m142[0m - [1m  Daily Loss Limit: 3.0%[0m
+[32m2025-12-30 00:17:46[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m143[0m - [1m  ATR Stop Multiplier: 2.0x[0m
+[32m2025-12-30 00:17:46[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m144[0m - [1m  Trailing Stops: True[0m
+[32m2025-12-30 00:17:46[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m145[0m - [1m  Profit Ladder: True[0m
+[32m2025-12-30 00:17:46[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m148[0m - [1m----------------------------------------[0m
+[32m2025-12-30 00:17:46[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m149[0m - [1mInitializing Delta Exchange client...[0m
+[32m2025-12-30 00:17:46[0m | [1mINFO    [0m | [36msrc.delta_client[0m:[36m__init__[0m:[36m187[0m - [1mHybrid mode: Market data from https://api.india.delta.exchange, Trading on testnet[0m
+[32m2025-12-30 00:17:46[0m | [1mINFO    [0m | [36msrc.delta_client[0m:[36m__init__[0m:[36m202[0m - [1mDelta Exchange client initialized for https://cdn-ind.testnet.deltaex.org[0m
+[32m2025-12-30 00:17:46[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m153[0m - [1mTesting API connection...[0m
+[32m2025-12-30 00:17:47[0m | [1mINFO    [0m | [36msrc.delta_client[0m:[36mtest_connection[0m:[36m791[0m - [1mPublic API OK - 564 products available[0m
+[32m2025-12-30 00:17:48[0m | [31m[1mERROR   [0m | [36msrc.delta_client[0m:[36m_request[0m:[36m283[0m - [31m[1mAPI Error: 401 - Unknown error[0m
+[32m2025-12-30 00:17:48[0m | [31m[1mERROR   [0m | [36msrc.delta_client[0m:[36mtest_connection[0m:[36m799[0m - [31m[1mConnection test failed: Delta API Error: Unknown error[0m
+[32m2025-12-30 00:17:48[0m | [31m[1mERROR   [0m | [36m__main__[0m:[36minitialize[0m:[36m155[0m - [31m[1mFailed to connect to Delta Exchange API[0m
+
+--- Cycle 3/5 ---
+/Users/kasyap/Documents/projects/delta-exchange/venv/lib/python3.9/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+[32m2025-12-30 00:17:50[0m | [1mINFO    [0m | [36mutils.logger[0m:[36msetup_logger[0m:[36m49[0m - [1mLogger initialized[0m
+[32m2025-12-30 00:17:50[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m90[0m - [1m======================================================================[0m
+[32m2025-12-30 00:17:50[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m91[0m - [1mDelta Exchange Multi-Strategy Trading Bot v2.0[0m
+[32m2025-12-30 00:17:50[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m92[0m - [1m======================================================================[0m
+[32m2025-12-30 00:17:50[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m101[0m - [1mEnvironment: testnet[0m
+[32m2025-12-30 00:17:50[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m102[0m - [1mRegion: india[0m
+[32m2025-12-30 00:17:50[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m103[0m - [1mBase URL: https://cdn-ind.testnet.deltaex.org[0m
+[32m2025-12-30 00:17:50[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m104[0m - [1mTrading Pairs: ['BTCUSD', 'ETHUSD', 'SOLUSD'][0m
+[32m2025-12-30 00:17:50[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m105[0m - [1mDry Run: True[0m
+[32m2025-12-30 00:17:50[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m106[0m - [1mPaper Trade: True[0m
+[32m2025-12-30 00:17:50[0m | [1mINFO    [0m | [36msrc.paper_trader[0m:[36m__init__[0m:[36m258[0m - [1m[PAPER] Paper Trading Simulator initialized[0m
+[32m2025-12-30 00:17:50[0m | [1mINFO    [0m | [36msrc.utils.persistence_manager[0m:[36mload_state[0m:[36m92[0m - [1mNo persistence file found at data/paper_trade_state.json[0m
+[32m2025-12-30 00:17:50[0m | [1mINFO    [0m | [36msrc.paper_trader[0m:[36m__init__[0m:[36m264[0m - [1m[PAPER] ✨ Starting fresh session[0m
+[32m2025-12-30 00:17:50[0m | [1mINFO    [0m | [36msrc.paper_trader[0m:[36m__init__[0m:[36m266[0m - [1m[PAPER]   Balance: $200.00[0m
+[32m2025-12-30 00:17:50[0m | [1mINFO    [0m | [36msrc.paper_trader[0m:[36m__init__[0m:[36m267[0m - [1m[PAPER]   Leverage: 5x[0m
+[32m2025-12-30 00:17:50[0m | [1mINFO    [0m | [36msrc.paper_trader[0m:[36m__init__[0m:[36m268[0m - [1m[PAPER]   Fee Rate: maker (0.04%)[0m
+[32m2025-12-30 00:17:50[0m | [1mINFO    [0m | [36msrc.paper_trader[0m:[36m__init__[0m:[36m270[0m - [1m[PAPER]   ⚠️  With 5x leverage, gains AND losses are amplified![0m
+[32m2025-12-30 00:17:50[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m130[0m - [1mPaper Trading enabled with $200.00 @ 5x leverage[0m
+[32m2025-12-30 00:17:50[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m133[0m - [1m----------------------------------------[0m
+[32m2025-12-30 00:17:50[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m134[0m - [1mStrategy Allocation:[0m
+[32m2025-12-30 00:17:50[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m135[0m - [1m  Tier 1 (Funding Arbitrage): 40%[0m
+[32m2025-12-30 00:17:50[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m136[0m - [1m  Tier 2 (Correlated Hedging): 40%[0m
+[32m2025-12-30 00:17:50[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m137[0m - [1m  Tier 3 (Multi-Timeframe): 20%[0m
+[32m2025-12-30 00:17:50[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m140[0m - [1m----------------------------------------[0m
+[32m2025-12-30 00:17:50[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m141[0m - [1mRisk Management:[0m
+[32m2025-12-30 00:17:50[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m142[0m - [1m  Daily Loss Limit: 3.0%[0m
+[32m2025-12-30 00:17:50[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m143[0m - [1m  ATR Stop Multiplier: 2.0x[0m
+[32m2025-12-30 00:17:50[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m144[0m - [1m  Trailing Stops: True[0m
+[32m2025-12-30 00:17:50[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m145[0m - [1m  Profit Ladder: True[0m
+[32m2025-12-30 00:17:50[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m148[0m - [1m----------------------------------------[0m
+[32m2025-12-30 00:17:50[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m149[0m - [1mInitializing Delta Exchange client...[0m
+[32m2025-12-30 00:17:50[0m | [1mINFO    [0m | [36msrc.delta_client[0m:[36m__init__[0m:[36m187[0m - [1mHybrid mode: Market data from https://api.india.delta.exchange, Trading on testnet[0m
+[32m2025-12-30 00:17:50[0m | [1mINFO    [0m | [36msrc.delta_client[0m:[36m__init__[0m:[36m202[0m - [1mDelta Exchange client initialized for https://cdn-ind.testnet.deltaex.org[0m
+[32m2025-12-30 00:17:50[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m153[0m - [1mTesting API connection...[0m
+[32m2025-12-30 00:17:51[0m | [1mINFO    [0m | [36msrc.delta_client[0m:[36mtest_connection[0m:[36m791[0m - [1mPublic API OK - 564 products available[0m
+[32m2025-12-30 00:17:52[0m | [31m[1mERROR   [0m | [36msrc.delta_client[0m:[36m_request[0m:[36m283[0m - [31m[1mAPI Error: 401 - Unknown error[0m
+[32m2025-12-30 00:17:52[0m | [31m[1mERROR   [0m | [36msrc.delta_client[0m:[36mtest_connection[0m:[36m799[0m - [31m[1mConnection test failed: Delta API Error: Unknown error[0m
+[32m2025-12-30 00:17:52[0m | [31m[1mERROR   [0m | [36m__main__[0m:[36minitialize[0m:[36m155[0m - [31m[1mFailed to connect to Delta Exchange API[0m
+
+--- Cycle 4/5 ---
+/Users/kasyap/Documents/projects/delta-exchange/venv/lib/python3.9/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+[32m2025-12-30 00:17:54[0m | [1mINFO    [0m | [36mutils.logger[0m:[36msetup_logger[0m:[36m49[0m - [1mLogger initialized[0m
+[32m2025-12-30 00:17:54[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m90[0m - [1m======================================================================[0m
+[32m2025-12-30 00:17:54[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m91[0m - [1mDelta Exchange Multi-Strategy Trading Bot v2.0[0m
+[32m2025-12-30 00:17:54[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m92[0m - [1m======================================================================[0m
+[32m2025-12-30 00:17:54[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m101[0m - [1mEnvironment: testnet[0m
+[32m2025-12-30 00:17:54[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m102[0m - [1mRegion: india[0m
+[32m2025-12-30 00:17:54[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m103[0m - [1mBase URL: https://cdn-ind.testnet.deltaex.org[0m
+[32m2025-12-30 00:17:54[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m104[0m - [1mTrading Pairs: ['BTCUSD', 'ETHUSD', 'SOLUSD'][0m
+[32m2025-12-30 00:17:54[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m105[0m - [1mDry Run: True[0m
+[32m2025-12-30 00:17:54[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m106[0m - [1mPaper Trade: True[0m
+[32m2025-12-30 00:17:54[0m | [1mINFO    [0m | [36msrc.paper_trader[0m:[36m__init__[0m:[36m258[0m - [1m[PAPER] Paper Trading Simulator initialized[0m
+[32m2025-12-30 00:17:54[0m | [1mINFO    [0m | [36msrc.utils.persistence_manager[0m:[36mload_state[0m:[36m92[0m - [1mNo persistence file found at data/paper_trade_state.json[0m
+[32m2025-12-30 00:17:54[0m | [1mINFO    [0m | [36msrc.paper_trader[0m:[36m__init__[0m:[36m264[0m - [1m[PAPER] ✨ Starting fresh session[0m
+[32m2025-12-30 00:17:54[0m | [1mINFO    [0m | [36msrc.paper_trader[0m:[36m__init__[0m:[36m266[0m - [1m[PAPER]   Balance: $200.00[0m
+[32m2025-12-30 00:17:54[0m | [1mINFO    [0m | [36msrc.paper_trader[0m:[36m__init__[0m:[36m267[0m - [1m[PAPER]   Leverage: 5x[0m
+[32m2025-12-30 00:17:54[0m | [1mINFO    [0m | [36msrc.paper_trader[0m:[36m__init__[0m:[36m268[0m - [1m[PAPER]   Fee Rate: maker (0.04%)[0m
+[32m2025-12-30 00:17:54[0m | [1mINFO    [0m | [36msrc.paper_trader[0m:[36m__init__[0m:[36m270[0m - [1m[PAPER]   ⚠️  With 5x leverage, gains AND losses are amplified![0m
+[32m2025-12-30 00:17:54[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m130[0m - [1mPaper Trading enabled with $200.00 @ 5x leverage[0m
+[32m2025-12-30 00:17:54[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m133[0m - [1m----------------------------------------[0m
+[32m2025-12-30 00:17:54[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m134[0m - [1mStrategy Allocation:[0m
+[32m2025-12-30 00:17:54[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m135[0m - [1m  Tier 1 (Funding Arbitrage): 40%[0m
+[32m2025-12-30 00:17:54[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m136[0m - [1m  Tier 2 (Correlated Hedging): 40%[0m
+[32m2025-12-30 00:17:54[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m137[0m - [1m  Tier 3 (Multi-Timeframe): 20%[0m
+[32m2025-12-30 00:17:54[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m140[0m - [1m----------------------------------------[0m
+[32m2025-12-30 00:17:54[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m141[0m - [1mRisk Management:[0m
+[32m2025-12-30 00:17:54[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m142[0m - [1m  Daily Loss Limit: 3.0%[0m
+[32m2025-12-30 00:17:54[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m143[0m - [1m  ATR Stop Multiplier: 2.0x[0m
+[32m2025-12-30 00:17:54[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m144[0m - [1m  Trailing Stops: True[0m
+[32m2025-12-30 00:17:54[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m145[0m - [1m  Profit Ladder: True[0m
+[32m2025-12-30 00:17:54[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m148[0m - [1m----------------------------------------[0m
+[32m2025-12-30 00:17:54[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m149[0m - [1mInitializing Delta Exchange client...[0m
+[32m2025-12-30 00:17:54[0m | [1mINFO    [0m | [36msrc.delta_client[0m:[36m__init__[0m:[36m187[0m - [1mHybrid mode: Market data from https://api.india.delta.exchange, Trading on testnet[0m
+[32m2025-12-30 00:17:54[0m | [1mINFO    [0m | [36msrc.delta_client[0m:[36m__init__[0m:[36m202[0m - [1mDelta Exchange client initialized for https://cdn-ind.testnet.deltaex.org[0m
+[32m2025-12-30 00:17:54[0m | [1mINFO    [0m | [36m__main__[0m:[36minitialize[0m:[36m153[0m - [1mTesting API connection...[0m
+[32m2025-12-30 00:17:55[0m | [1mINFO    [0m | [36msrc.delta_client[0m:[36mtest_connection[0m:[36m791[0m - [1mPublic API OK - 564 products available[0m
+[32m2025-12-30 00:17:56[0m | [31m[1mERROR   [0m | [36msrc.delta_client[0m:[36m_request[0m:[36m283[0m - [31m[1mAPI Error: 401 - Unknown error[0m
+[32m2025-12-30 00:17:56[0m | [31m[1mERROR   [0m | [36msrc.delta_client[0m:[36mtest_connection[0m:[36m799[0m - [31m[1mConnection test failed: Delta API Error: Unknown error[0m
+[32m2025-12-30 00:17:56[0m | [31m[1mERROR   [0m | [36m__main__[0m:[36minitialize[0m:[36m155[0m - [31m[1mFailed to connect to Delta Exchange API[0m
+
+--- Cycle 5/5 ---

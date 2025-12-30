@@ -54,7 +54,13 @@ class StrategySignal:
     @property
     def is_actionable(self) -> bool:
         """Check if this signal requires action."""
-        return self.direction != SignalDirection.NEUTRAL
+        # Regular directional signals
+        if self.direction != SignalDirection.NEUTRAL:
+            return True
+        # Funding arbitrage signals are NEUTRAL but still actionable
+        if self.metadata.get('is_arbitrage') and self.metadata.get('action'):
+            return True
+        return False
     
     @property
     def has_hedge(self) -> bool:

@@ -152,8 +152,15 @@ class MultiStrategyBot:
         # Test connection
         log.info("Testing API connection...")
         if not self.client.test_connection():
-            log.error("Failed to connect to Delta Exchange API")
-            return False
+            if self.paper_trade or self.dry_run:
+                log.warning("Private API connection failed, but proceeding with Paper Trading mode")
+                if not self.client.test_public_connection():
+                    log.error("Failed to connect to Delta Exchange Market Data API")
+                    return False
+                log.info("Public API connection OK - Running in Unauthenticated Mode")
+            else:
+                log.error("Failed to connect to Delta Exchange API")
+                return False
         
         # Build strategy allocation
         allocation = {
@@ -187,8 +194,13 @@ class MultiStrategyBot:
         log.info("-" * 50)
         
         try:
+            # Paper Trading position override
+            positions_override = None
+            if self.paper_trade and self.paper_simulator:
+                positions_override = self.paper_simulator.get_positions_as_delta_objects()
+                
             # Run the strategy manager cycle
-            signals = self.strategy_manager.run_cycle()
+            signals = self.strategy_manager.run_cycle(override_positions=positions_override)
             
             # Paper Trading: Process entries and exits
             if self.paper_trade and self.paper_simulator:

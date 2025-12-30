@@ -3,12 +3,14 @@ Paper Trading Simulator.
 Tracks virtual positions and calculates simulated P&L without real execution.
 """
 
-from typing import Dict, List, Optional, Tuple
-from dataclasses import dataclass, field
+from typing import Dict, List, Optional, Tuple, Any
+from dataclasses import dataclass, field, asdict
 from datetime import datetime
 from enum import Enum
+import json
 
 from utils.logger import log
+from src.utils.persistence_manager import PersistenceManager
 
 
 class PositionStatus(Enum):
@@ -54,9 +56,29 @@ class PaperPosition:
     
     def __post_init__(self):
         """Initialize tracking fields."""
-        self.original_stop_loss = self.stop_loss
-        self.highest_price = self.entry_price
-        self.lowest_price = self.entry_price
+        if self.original_stop_loss == 0.0:
+            self.original_stop_loss = self.stop_loss
+        if self.highest_price == 0.0:
+            self.highest_price = self.entry_price
+        if self.lowest_price == 0.0:
+            self.lowest_price = self.entry_price
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Serialize to dictionary."""
+        data = asdict(self)
+        data['entry_time'] = self.entry_time.isoformat() if self.entry_time else None
+        data['exit_time'] = self.exit_time.isoformat() if self.exit_time else None
+        data['status'] = self.status.value
+        return data
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'PaperPosition':
+        """Deserialize from dictionary."""
+        data['entry_time'] = datetime.fromisoformat(data['entry_time']) if data.get('entry_time') else None
+        data['exit_time'] = datetime.fromisoformat(data['exit_time']) if data.get('exit_time') else None
+        if 'status' in data:
+            data['status'] = PositionStatus(data['status'])
+        return cls(**data)
     
     def update_price(self, new_price: float) -> None:
         """Update current price, track high/low, and recalculate unrealized P&L."""
@@ -83,6 +105,7 @@ class PaperPosition:
             return False  # Already activated
         
         original_risk = abs(self.entry_price - self.original_stop_loss)
+        if original_risk == 0: return False
         
         if self.side == 'long':
             # For longs, check if price moved up by 1R
@@ -176,19 +199,15 @@ class TradingStats:
     @property
     def total_pnl(self) -> float:
         return self.total_realized_pnl + self.total_unrealized_pnl
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
     
-    @property
-    def avg_win(self) -> float:
-        if self.winning_trades == 0:
-            return 0.0
-        # Note: This is approximate since we don't track individual wins
-        return self.largest_win  # Simplified
-    
-    @property
-    def avg_loss(self) -> float:
-        if self.losing_trades == 0:
-            return 0.0
-        return self.largest_loss  # Simplified
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'TradingStats':
+        # Remove computed properties from dict if present
+        clean_data = {k: v for k, v in data.items() if k in cls.__annotations__}
+        return cls(**clean_data)
 
 
 class PaperTradingSimulator:
@@ -203,6 +222,7 @@ class PaperTradingSimulator:
     - Support leverage (amplifies gains and losses)
     - Auto square-off when conditions become unfavorable
     - Display running totals and statistics
+    - PERSISTENCE: Saves/Loads state from JSON to survive restarts
     """
     
     # Delta Exchange trading fees (effective March 2024)
@@ -211,7 +231,8 @@ class PaperTradingSimulator:
     
     def __init__(self, initial_balance: float = 10000.0, 
                  leverage: int = 1,
-                 use_maker_fee: bool = False):
+                 use_maker_fee: bool = False,
+                 persistence_file: str = "data/paper_trade_state.json"):
         """
         Initialize paper trading simulator.
         
@@ -219,6 +240,7 @@ class PaperTradingSimulator:
             initial_balance: Starting virtual balance in USD
             leverage: Leverage multiplier (e.g., 5 for 5x leverage)
             use_maker_fee: If True, use maker fee (0.04%), else taker (0.06%)
+            persistence_file: Path to save/load state
         """
         self.initial_balance = initial_balance
         self.current_balance = initial_balance
@@ -230,9 +252,26 @@ class PaperTradingSimulator:
         self.stats = TradingStats()
         self._position_counter = 0
         
+        # Ensure data directory exists
+        import os
+        data_dir = os.path.dirname(persistence_file)
+        if data_dir and not os.path.exists(data_dir):
+            os.makedirs(data_dir, exist_ok=True)
+            log.info(f"[PAPER] Created data directory: {data_dir}")
+
+        self.persistence = PersistenceManager(persistence_file)
+        
         fee_type = "maker (0.04%)" if use_maker_fee else "taker (0.06%)"
         log.info(f"[PAPER] Paper Trading Simulator initialized")
-        log.info(f"[PAPER]   Balance: ${initial_balance:.2f}")
+        
+        # Try to load existing state
+        if self._load_state():
+            log.info(f"[PAPER] ♻️ Restored previous session state")
+        else:
+            log.info(f"[PAPER] ✨ Starting fresh session")
+            self._save_state()  # Ensure initial state is saved
+
+        log.info(f"[PAPER]   Balance: ${self.current_balance:.2f}")
         log.info(f"[PAPER]   Leverage: {leverage}x")
         log.info(f"[PAPER]   Fee Rate: {fee_type}")
         if leverage > 1:
@@ -247,6 +286,59 @@ class PaperTradingSimulator:
         self._position_counter += 1
         return f"paper_{self._position_counter}"
     
+    def _save_state(self) -> None:
+        """Save current state to persistent storage."""
+        try:
+            state = {
+                'timestamp': datetime.now().isoformat(),
+                'initial_balance': self.initial_balance,
+                'current_balance': self.current_balance,
+                'position_counter': self._position_counter,
+                'stats': self.stats.to_dict(),
+                'positions': {
+                    sym: pos.to_dict() 
+                    for sym, pos in self.positions.items()
+                },
+                'closed_positions': [
+                    pos.to_dict() 
+                    for pos in self.closed_positions[-50:]  # Keep last 50 closed positions
+                ]
+            }
+            self.persistence.save_state(state)
+        except Exception as e:
+            log.error(f"[PAPER] Failed to save state: {e}")
+
+    def _load_state(self) -> bool:
+        """Load state from persistent storage."""
+        state = self.persistence.load_state()
+        if not state:
+            return False
+            
+        try:
+            # Restore balance (optionally restore initial_balance to track absolute P&L since day 1)
+            self.initial_balance = state.get('initial_balance', self.initial_balance)
+            self.current_balance = state.get('current_balance', self.current_balance)
+            self._position_counter = state.get('position_counter', 0)
+            
+            # Restore stats
+            if 'stats' in state:
+                self.stats = TradingStats.from_dict(state['stats'])
+            
+            # Restore open positions
+            positions_data = state.get('positions', {})
+            self.positions = {}
+            for sym, pos_data in positions_data.items():
+                self.positions[sym] = PaperPosition.from_dict(pos_data)
+            
+            # Restore closed positions
+            closed_data = state.get('closed_positions', [])
+            self.closed_positions = [PaperPosition.from_dict(p) for p in closed_data]
+            
+            return True
+        except Exception as e:
+            log.error(f"[PAPER] Failed to load state: {e}")
+            return False
+
     def open_position(self, 
                       symbol: str,
                       side: str,
@@ -304,6 +396,9 @@ class PaperTradingSimulator:
         log.info(f"         Entry Fee: ${entry_fee:.4f} ({self.fee_rate*100:.2f}%)")
         log.info(f"         SL: ${stop_loss:.2f} | TP: ${take_profit:.2f}")
         log.info(f"         Strategy: {strategy}")
+        
+        # Save state immediately
+        self._save_state()
         
         return position
     
@@ -367,6 +462,9 @@ class PaperTradingSimulator:
         log.info(f"         Net P&L: {pnl_sign}${realized_pnl:.2f} ({position.pnl_pct:+.2f}%)")
         log.info(f"         Reason: {reason}")
         log.info(f"         Balance: ${self.current_balance:.2f}")
+        
+        # Save state immediately
+        self._save_state()
         
         return True, realized_pnl
     
@@ -574,3 +672,48 @@ class PaperTradingSimulator:
             'open_positions': len(self.positions),
             'closed_positions': len(self.closed_positions)
         }
+    
+    def get_positions_as_delta_objects(self) -> List[Any]:
+        """Convert paper positions to Delta Exchange Position objects."""
+        # Use local import to avoid circular dependency
+        from src.delta_client import Position
+        
+        delta_positions = []
+        for p in self.positions.values():
+            if p.status != PositionStatus.OPEN:
+                continue
+            # Calculate sign based on side
+            signed_size = p.size if p.side == 'long' else -p.size
+            
+            delta_positions.append(Position(
+                product_id=0,  # Dummy ID
+                product_symbol=p.symbol,
+                size=abs(p.size), # Delta Position object stores positive size, direction might be inferred or stored elsewhere?
+                # Wait, Position object has no 'side' field. 'size' is usually signed in API responses? 
+                # Let's check Position definition in delta_client.py
+                # It has 'size' (float). API usually returns signed size for positions.
+                # Let's verify Position definition again.
+                # Step 446: 
+                # @dataclass class Position:
+                #     product_id: int
+                #     product_symbol: str
+                #     size: float 
+                #     entry_price: float
+                #     mark_price: float
+                #     unrealized_pnl: float
+                #     realized_pnl: float
+                
+                # If size is signed in Delta API, then I should use signed_size. 
+                # Usually negative size = Short.
+                # Let's assume signed size.
+                entry_price=p.entry_price,
+                mark_price=p.current_price,
+                unrealized_pnl=p.unrealized_pnl,
+                realized_pnl=p.realized_pnl
+            ))
+            # Wait, Position dataclass logic about size.
+            # Delta API documentation says: "size: The size of the position. Positive for buy, negative for sell."
+            # So I should use signed_size.
+            delta_positions[-1].size = signed_size
+            
+        return delta_positions

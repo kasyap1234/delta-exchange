@@ -322,9 +322,11 @@ class FundingArbitrageStrategy(BaseStrategy):
             ArbitragePosition if successful
         """
         if self.dry_run:
+            spot_symbol = self._get_spot_symbol(symbol)
             log.info(f"[DRY RUN] Would enter funding arb: {symbol} size={size}")
             arb_pos = ArbitragePosition(
-                symbol=symbol,
+                long_symbol=spot_symbol,  # Long spot
+                short_symbol=symbol,       # Short perpetual
                 long_size=size,
                 short_size=size,
                 entry_funding_rate=funding_rate,
@@ -517,7 +519,8 @@ class FundingArbitrageStrategy(BaseStrategy):
             'funding_monitor': self.funding_monitor.get_status(),
             'positions': [
                 {
-                    'symbol': p.symbol,
+                    'symbol': p.short_symbol,  # Perpetual symbol
+                    'hedge': p.long_symbol,    # Spot hedge symbol
                     'size': p.short_size,
                     'entry_rate': p.entry_funding_rate,
                     'funding_earned': p.total_funding_earned

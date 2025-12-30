@@ -123,7 +123,7 @@ class MultiTimeframeStrategy(BaseStrategy):
         
         # Trading pairs
         self.trading_pairs = getattr(settings.trading, 'trading_pairs',
-                                     ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'])
+                                     ['BTCUSD', 'ETHUSD', 'SOLUSD'])
         
         # Track positions with trailing stops
         self._mtf_positions: Dict[str, MTFPosition] = {}
@@ -222,15 +222,15 @@ class MultiTimeframeStrategy(BaseStrategy):
                     volume = np.array([c.volume for c in candles])
                     
                     # ADX filter (Trend strength)
-                    is_trending, adx = self.analyzer.is_trending(high, low, close, min_adx=25.0)
+                    is_trending, adx = self.analyzer.is_trending(high, low, close, min_adx=15.0)
                     if not is_trending:
-                        log.debug(f"MTF: {symbol} rejected - ADX {adx:.1f} < 25 (weak trend)")
+                        log.info(f"MTF: {symbol} rejected - ADX {adx:.1f} < 15 (weak trend)")
                         continue
                         
                     # Volume filter (Confirmation)
                     vol_result = self.analyzer.calculate_volume_signal(volume, close)
                     if vol_result.signal == IndicatorSignal.NEUTRAL:
-                        log.debug(f"MTF: {symbol} rejected - weak volume confirmation")
+                        log.info(f"MTF: {symbol} rejected - weak volume confirmation ({vol_result.description})")
                         continue
                         
                     log.info(f"MTF filters passed for {symbol}: ADX={adx:.1f}, Vol={vol_result.description}")

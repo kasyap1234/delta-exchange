@@ -15,11 +15,12 @@ load_dotenv()
 @dataclass
 class DeltaConfig:
     """Delta Exchange API configuration."""
+
     api_key: str = field(default_factory=lambda: os.getenv("DELTA_API_KEY", ""))
     api_secret: str = field(default_factory=lambda: os.getenv("DELTA_API_SECRET", ""))
     environment: str = field(default_factory=lambda: os.getenv("DELTA_ENV", "testnet"))
     region: str = field(default_factory=lambda: os.getenv("DELTA_REGION", "india"))
-    
+
     @property
     def base_url(self) -> str:
         """Get the appropriate API base URL based on environment and region."""
@@ -31,7 +32,7 @@ class DeltaConfig:
             if self.region == "india":
                 return "https://api.india.delta.exchange"
             return "https://api.delta.exchange"
-    
+
     def validate(self) -> bool:
         """Validate that required credentials are set."""
         if not self.api_key or not self.api_secret:
@@ -44,18 +45,22 @@ class DeltaConfig:
 @dataclass
 class StrategyAllocationConfig:
     """Capital allocation per strategy tier."""
+
     # Tier 1: Delta-neutral funding arbitrage (safest)
-    funding_arbitrage: float = field(default_factory=lambda: 
-        float(os.getenv("ALLOC_FUNDING_ARB", "0.40")))  # 40%
-    
+    funding_arbitrage: float = field(
+        default_factory=lambda: float(os.getenv("ALLOC_FUNDING_ARB", "0.40"))
+    )  # 40%
+
     # Tier 2: Correlated pair hedging (medium risk)
-    correlated_hedging: float = field(default_factory=lambda: 
-        float(os.getenv("ALLOC_CORR_HEDGE", "0.40")))  # 40%
-    
+    correlated_hedging: float = field(
+        default_factory=lambda: float(os.getenv("ALLOC_CORR_HEDGE", "0.40"))
+    )  # 40%
+
     # Tier 3: Multi-timeframe trend following (higher risk)
-    multi_timeframe: float = field(default_factory=lambda: 
-        float(os.getenv("ALLOC_MTF", "0.20")))  # 20%
-    
+    multi_timeframe: float = field(
+        default_factory=lambda: float(os.getenv("ALLOC_MTF", "0.20"))
+    )  # 20%
+
     def validate(self) -> bool:
         """Validate allocations sum to 1.0."""
         total = self.funding_arbitrage + self.correlated_hedging + self.multi_timeframe
@@ -65,37 +70,42 @@ class StrategyAllocationConfig:
 @dataclass
 class HedgingConfig:
     """Hedging strategy configuration."""
+
     # Default hedge ratio (portion of position hedged)
-    default_hedge_ratio: float = field(default_factory=lambda: 
-        float(os.getenv("HEDGE_RATIO", "0.30")))  # 30%
-    
+    default_hedge_ratio: float = field(
+        default_factory=lambda: float(os.getenv("HEDGE_RATIO", "0.30"))
+    )  # 30%
+
     # Minimum correlation to allow hedging
-    min_correlation: float = field(default_factory=lambda: 
-        float(os.getenv("MIN_CORRELATION", "0.65")))
-    
-    # Hedge pair mappings
-    hedge_pairs: Dict[str, str] = field(default_factory=lambda: {
-        'BTCUSDT': 'ETHUSDT',
-        'ETHUSDT': 'BTCUSDT',
-        'SOLUSDT': 'ETHUSDT',
-    })
-    
+    min_correlation: float = field(
+        default_factory=lambda: float(os.getenv("MIN_CORRELATION", "0.65"))
+    )
+
+    # Hedge pair mappings (should match trading pair symbols - USD not USDT)
+    hedge_pairs: Dict[str, str] = field(
+        default_factory=lambda: {
+            "BTCUSD": "ETHUSD",
+            "ETHUSD": "BTCUSD",
+            "SOLUSD": "ETHUSD",
+        }
+    )
+
     # Funding arbitrage settings
-    funding_threshold: float = field(default_factory=lambda: 
-        float(os.getenv("FUNDING_THRESHOLD", "0.0005")))  # 0.05% per 8h
+    funding_threshold: float = field(
+        default_factory=lambda: float(os.getenv("FUNDING_THRESHOLD", "0.0001"))
+    )  # 0.01% per 8h (reduced for realistic rates)
 
 
 @dataclass
 class MultiTimeframeConfig:
     """Multi-timeframe analysis configuration."""
+
     # Higher timeframe for trend direction
-    higher_timeframe: str = field(default_factory=lambda: 
-        os.getenv("HIGHER_TF", "4h"))
-    
+    higher_timeframe: str = field(default_factory=lambda: os.getenv("HIGHER_TF", "4h"))
+
     # Entry timeframe for signals
-    entry_timeframe: str = field(default_factory=lambda: 
-        os.getenv("ENTRY_TF", "15m"))
-    
+    entry_timeframe: str = field(default_factory=lambda: os.getenv("ENTRY_TF", "15m"))
+
     # Trend detection EMA periods
     trend_ema_short: int = 50
     trend_ema_long: int = 200
@@ -104,104 +114,134 @@ class MultiTimeframeConfig:
 @dataclass
 class EnhancedRiskConfig:
     """Enhanced risk management configuration."""
+
     # Daily loss limit (halt trading if exceeded)
-    daily_loss_limit_pct: float = field(default_factory=lambda: 
-        float(os.getenv("DAILY_LOSS_LIMIT", "0.03")))  # 3%
-    
-    # ATR-based stops (widened for leverage trading - reduces whipsaws)
+    daily_loss_limit_pct: float = field(
+        default_factory=lambda: float(os.getenv("DAILY_LOSS_LIMIT", "0.03"))
+    )  # 3%
+
+    # Maximum drawdown limit (halt trading if exceeded)
+    max_drawdown_limit_pct: float = field(
+        default_factory=lambda: float(os.getenv("MAX_DRAWDOWN_LIMIT", "0.10"))
+    )  # 10%
+
+    # ATR-based stops (balanced for better R:R ratios)
     atr_period: int = 14
-    atr_stop_multiplier: float = field(default_factory=lambda: 
-        float(os.getenv("ATR_STOP_MULT", "3.0")))  # 3x ATR (was 2x - wider stops)
-    atr_trailing_multiplier: float = field(default_factory=lambda: 
-        float(os.getenv("ATR_TRAIL_MULT", "2.0")))  # 2x ATR (was 1.5x - more room)
-    
+    atr_stop_multiplier: float = field(
+        default_factory=lambda: float(os.getenv("ATR_STOP_MULT", "2.0"))
+    )  # 2x ATR (balanced for better risk-reward)
+    atr_trailing_multiplier: float = field(
+        default_factory=lambda: float(os.getenv("ATR_TRAIL_MULT", "1.5"))
+    )  # 1.5x ATR (tighter trailing for protection)
+
     # Trailing stops
-    trailing_enabled: bool = field(default_factory=lambda: 
-        os.getenv("TRAILING_ENABLED", "true").lower() == "true")
-    
+    trailing_enabled: bool = field(
+        default_factory=lambda: os.getenv("TRAILING_ENABLED", "true").lower() == "true"
+    )
+
     # Profit ladder (take partial profits)
-    profit_ladder_enabled: bool = field(default_factory=lambda: 
-        os.getenv("PROFIT_LADDER", "true").lower() == "true")
-    
+    profit_ladder_enabled: bool = field(
+        default_factory=lambda: os.getenv("PROFIT_LADDER", "true").lower() == "true"
+    )
+
     # Profit ladder levels: (R-multiple, exit percentage)
-    profit_levels: List[Dict] = field(default_factory=lambda: [
-        {'r_multiple': 1.0, 'exit_pct': 0.25},  # 25% at 1R
-        {'r_multiple': 2.0, 'exit_pct': 0.25},  # 25% at 2R
-        # Remaining 50% trails
-    ])
-    
+    profit_levels: List[Dict] = field(
+        default_factory=lambda: [
+            {"r_multiple": 1.0, "exit_pct": 0.25},  # 25% at 1R
+            {"r_multiple": 2.0, "exit_pct": 0.25},  # 25% at 2R
+            # Remaining 50% trails
+        ]
+    )
+
     # --- NEW: Phase 1 Risk Management Core ---
     # Risk per trade (industry standard: 1-2%)
-    max_risk_per_trade: float = field(default_factory=lambda: 
-        float(os.getenv("MAX_RISK_PER_TRADE", "0.02")))  # 2% max risk
-    
+    max_risk_per_trade: float = field(
+        default_factory=lambda: float(os.getenv("MAX_RISK_PER_TRADE", "0.02"))
+    )  # 2% max risk
+
     # Kelly Criterion settings
-    use_kelly_sizing: bool = field(default_factory=lambda: 
-        os.getenv("USE_KELLY_SIZING", "true").lower() == "true")
-    kelly_fraction: float = field(default_factory=lambda: 
-        float(os.getenv("KELLY_FRACTION", "0.5")))  # Half-Kelly for safety
-    
+    use_kelly_sizing: bool = field(
+        default_factory=lambda: os.getenv("USE_KELLY_SIZING", "true").lower() == "true"
+    )
+    kelly_fraction: float = field(
+        default_factory=lambda: float(os.getenv("KELLY_FRACTION", "0.5"))
+    )  # Half-Kelly for safety
+
     # Maximum position as % of account (hard cap)
-    max_position_pct: float = field(default_factory=lambda: 
-        float(os.getenv("MAX_POSITION_PCT", "0.20")))  # Never more than 20%
-    
+    max_position_pct: float = field(
+        default_factory=lambda: float(os.getenv("MAX_POSITION_PCT", "0.20"))
+    )  # Never more than 20%
+
     # Volatility-adjusted sizing
-    reduce_size_high_volatility: bool = field(default_factory=lambda: 
-        os.getenv("REDUCE_SIZE_HIGH_VOL", "true").lower() == "true")
+    reduce_size_high_volatility: bool = field(
+        default_factory=lambda: os.getenv("REDUCE_SIZE_HIGH_VOL", "true").lower()
+        == "true"
+    )
     atr_size_multiplier: float = 1.5  # Reduce size if ATR > 1.5x average
 
 
 @dataclass
 class TradingConfig:
     """Trading strategy configuration."""
+
     # Trading pairs to monitor
-    trading_pairs: List[str] = field(default_factory=lambda: 
-        os.getenv("TRADING_PAIRS", "BTCUSDT,ETHUSDT,SOLUSDT").split(","))
-    
+    trading_pairs: List[str] = field(
+        default_factory=lambda: os.getenv(
+            "TRADING_PAIRS", "BTCUSDT,ETHUSDT,SOLUSDT"
+        ).split(",")
+    )
+
     # Risk management - More conservative defaults for sustainability
-    max_capital_per_trade: float = field(default_factory=lambda: 
-        float(os.getenv("MAX_CAPITAL_PER_TRADE", "0.15")))  # 15% (was 25%)
-    stop_loss_pct: float = field(default_factory=lambda: 
-        float(os.getenv("STOP_LOSS_PCT", "0.03")))  # 3% (was 5% - ATR stops preferred)
-    take_profit_pct: float = field(default_factory=lambda: 
-        float(os.getenv("TAKE_PROFIT_PCT", "0.06")))  # 6% (was 10% - 2:1 R:R maintained)
-    max_open_positions: int = field(default_factory=lambda: 
-        int(os.getenv("MAX_OPEN_POSITIONS", "5")))  # Increased for diversification
-    
+    max_capital_per_trade: float = field(
+        default_factory=lambda: float(os.getenv("MAX_CAPITAL_PER_TRADE", "0.15"))
+    )  # 15% (was 25%)
+    stop_loss_pct: float = field(
+        default_factory=lambda: float(os.getenv("STOP_LOSS_PCT", "0.03"))
+    )  # 3% (was 5% - ATR stops preferred)
+    take_profit_pct: float = field(
+        default_factory=lambda: float(os.getenv("TAKE_PROFIT_PCT", "0.06"))
+    )  # 6% (was 10% - 2:1 R:R maintained)
+    max_open_positions: int = field(
+        default_factory=lambda: int(os.getenv("MAX_OPEN_POSITIONS", "10"))
+    )  # Allow room for Arb(3) + Hedge(3) + MTF(3)
+
     # Leverage setting (Delta Exchange supports up to 100x)
-    leverage: int = field(default_factory=lambda: 
-        int(os.getenv("LEVERAGE", "5")))  # Reduced to 5x (was 10x) for lower risk
-    
+    leverage: int = field(
+        default_factory=lambda: int(os.getenv("LEVERAGE", "5"))
+    )  # Reduced to 5x (was 10x) for lower risk
+
     # Candle settings
-    candle_interval: str = field(default_factory=lambda: 
-        os.getenv("CANDLE_INTERVAL", "15m"))
+    candle_interval: str = field(
+        default_factory=lambda: os.getenv("CANDLE_INTERVAL", "15m")
+    )
     candle_count: int = 300  # Number of candles to fetch for analysis
-    
-    # Indicator settings (RSI) - Slightly relaxed for more signals
+
+    # Indicator settings (RSI) - Balanced thresholds for tradeable signals
     rsi_period: int = 14
-    rsi_oversold: int = 35   # Was 30 (more signals in mildly oversold)
-    rsi_overbought: int = 65  # Was 70 (more signals in mildly overbought)
-    
+    rsi_oversold: int = 35  # Balanced for more signals (relaxed from 30)
+    rsi_overbought: int = 65  # Balanced for more signals (relaxed from 70)
+
     # Indicator settings (MACD)
     macd_fast: int = 12
     macd_slow: int = 26
     macd_signal: int = 9
-    
+
     # Indicator settings (Bollinger Bands)
     bb_period: int = 20
     bb_std: float = 2.0
-    
+
     # Indicator settings (EMA)
     ema_short: int = 9
     ema_long: int = 21
-    
-    # Minimum indicators that must agree for a trade (3 = 75% agreement)
-    min_signal_agreement: int = 2  # Reduced to 2 for more frequent trading on Testnet
+
+    # Minimum indicators that must agree for a trade (2 = 50% agreement)
+    min_signal_agreement: int = 2  # Balanced: 2/4 indicators needed (50% agreement)
 
 
 @dataclass
 class LoggingConfig:
     """Logging configuration."""
+
     level: str = field(default_factory=lambda: os.getenv("LOG_LEVEL", "INFO"))
     log_file: str = "logs/trading.log"
     rotation: str = "10 MB"
@@ -211,13 +251,15 @@ class LoggingConfig:
 @dataclass
 class Settings:
     """Main settings container."""
+
     delta: DeltaConfig = field(default_factory=DeltaConfig)
     trading: TradingConfig = field(default_factory=TradingConfig)
     logging: LoggingConfig = field(default_factory=LoggingConfig)
-    
+
     # New enhanced configurations
     strategy_allocation: StrategyAllocationConfig = field(
-        default_factory=StrategyAllocationConfig)
+        default_factory=StrategyAllocationConfig
+    )
     hedging: HedgingConfig = field(default_factory=HedgingConfig)
     mtf: MultiTimeframeConfig = field(default_factory=MultiTimeframeConfig)
     enhanced_risk: EnhancedRiskConfig = field(default_factory=EnhancedRiskConfig)
@@ -225,4 +267,3 @@ class Settings:
 
 # Global settings instance
 settings = Settings()
-

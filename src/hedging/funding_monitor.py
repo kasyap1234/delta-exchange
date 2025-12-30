@@ -115,7 +115,7 @@ class FundingMonitor:
     MIN_FUNDING_THRESHOLD = 0.00005
     
     # Symbols to monitor
-    DEFAULT_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT']
+    DEFAULT_SYMBOLS = ['BTCUSD', 'ETHUSD', 'SOLUSD']
     
     def __init__(self, client: DeltaExchangeClient,
                  funding_threshold: float = 0.0005,

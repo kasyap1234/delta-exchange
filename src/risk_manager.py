@@ -164,13 +164,14 @@ class RiskManager:
         available_balance: float,
         atr: Optional[float] = None,
         avg_atr: Optional[float] = None,
+        performance_data: Optional[dict] = None,
     ) -> PositionSizing:
         """
         Calculate optimal position size using risk-based rules.
 
         Implements:
         1. 2% Risk Rule: Position Size = (Account * Risk%) / |Entry - StopLoss|
-        2. Kelly Criterion: Fraction of capital to allocate based on win rate
+        2. Kelly Criterion: Fraction of capital to allocate based on actual win rate
         3. ATR-based Stops: Uses ATR for volatility-adjusted stop distance
 
         Args:
@@ -180,6 +181,7 @@ class RiskManager:
             available_balance: Current available capital
             atr: Current ATR for dynamic stops
             avg_atr: Average ATR for volatility adjustment
+            performance_data: Dict with 'total_trades', 'winning_trades', 'total_pnl' for Kelly
 
         Returns:
             PositionSizing with size, stop-loss, and take-profit
@@ -204,11 +206,39 @@ class RiskManager:
             entry_price, stop_loss_price, available_balance
         )
 
-        # 4. Apply Kelly Criterion Limit (if enabled)
+        # 4. Apply Kelly Criterion Limit (if enabled) with ACTUAL performance data
         if settings.enhanced_risk.use_kelly_sizing:
-            # Conservative defaults for Kelly
-            win_rate = 0.45
-            win_loss_ratio = 2.0
+            # Use actual performance data if available, otherwise conservative defaults
+            if performance_data and performance_data.get("total_trades", 0) >= 10:
+                win_rate = performance_data.get(
+                    "winning_trades", 0
+                ) / performance_data.get("total_trades", 1)
+                total_pnl = performance_data.get("total_pnl", 0)
+                total_trades = performance_data.get("total_trades", 1)
+
+                # Calculate win/loss ratio from actual performance
+                if win_rate > 0:
+                    avg_win = (
+                        total_pnl / (total_trades * win_rate) if win_rate > 0 else 0
+                    )
+                    avg_loss = (
+                        abs(total_pnl / (total_trades * (1 - win_rate)))
+                        if win_rate < 1
+                        else 1
+                    )
+                    win_loss_ratio = avg_win / avg_loss if avg_loss > 0 else 1.0
+                else:
+                    win_loss_ratio = 1.0
+
+                log.info(
+                    f"Kelly using actual data: WinRate={win_rate:.2%}, WinLoss={win_loss_ratio:.2f}"
+                )
+            else:
+                # Conservative defaults for low sample size
+                win_rate = 0.45
+                win_loss_ratio = 2.0
+                log.info("Kelly using defaults (insufficient trade data)")
+
             kelly_fraction = self.get_kelly_fraction(win_rate, win_loss_ratio)
 
             # Kelly-capped size (Kelly fraction refers to fraction of account)

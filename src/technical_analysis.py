@@ -133,7 +133,15 @@ class TechnicalAnalyzer:
         # Generate combined signal
         combined_signal, signal_strength = self._generate_combined_signal(indicators)
         
-        confidence = abs(signal_strength) / len(indicators) if indicators else 0.0
+        # Calculate confidence as the max of bullish or bearish count / total
+        # This way, 2 bullish + 2 bearish = 50% confidence (not 0%)
+        if indicators:
+            bullish_count = sum(1 for ind in indicators if ind.signal == IndicatorSignal.BULLISH)
+            bearish_count = sum(1 for ind in indicators if ind.signal == IndicatorSignal.BEARISH)
+            max_directional = max(bullish_count, bearish_count)
+            confidence = max_directional / len(indicators)
+        else:
+            confidence = 0.0
         
         result = TechnicalAnalysisResult(
             symbol=symbol,
@@ -646,7 +654,8 @@ class TechnicalAnalyzer:
     
     def calculate_volume_signal(self, volume: np.ndarray, 
                                  close: np.ndarray,
-                                 period: int = 20) -> IndicatorResult:
+                                 period: int = 20,
+                                 min_volume_ratio: float = 1.2) -> IndicatorResult:
         """
         Analyze volume to confirm price movements.
         
@@ -658,6 +667,7 @@ class TechnicalAnalyzer:
             volume: Array of volume data
             close: Array of close prices
             period: Period for average volume
+            min_volume_ratio: Ratio above average to trigger signal
             
         Returns:
             IndicatorResult with volume signal
@@ -677,28 +687,28 @@ class TechnicalAnalyzer:
         price_change = close[-1] - close[-2]
         price_change_pct = price_change / close[-2] if close[-2] > 0 else 0
         
-        # High volume (>1.5x average) with price movement
-        if volume_ratio > 1.5:
-            if price_change_pct > 0.001:  # >0.1% up
+        # Confirmation threshold (reduced for higher frequency)
+        if volume_ratio > min_volume_ratio:
+            if price_change_pct > 0.0005:  # >0.05% up
                 return IndicatorResult(
                     name="Volume",
                     signal=IndicatorSignal.BULLISH,
                     value=volume_ratio,
-                    description=f"High volume bullish ({volume_ratio:.1f}x avg)"
+                    description=f"Volume confirmation ({volume_ratio:.1f}x avg)"
                 )
-            elif price_change_pct < -0.001:  # >0.1% down
+            elif price_change_pct < -0.0005:  # >0.05% down
                 return IndicatorResult(
                     name="Volume",
                     signal=IndicatorSignal.BEARISH,
                     value=volume_ratio,
-                    description=f"High volume bearish ({volume_ratio:.1f}x avg)"
+                    description=f"Volume confirmation ({volume_ratio:.1f}x avg)"
                 )
         
         return IndicatorResult(
             name="Volume",
             signal=IndicatorSignal.NEUTRAL,
             value=volume_ratio,
-            description=f"Normal volume ({volume_ratio:.1f}x avg)"
+            description=f"Normal/Low volume ({volume_ratio:.1f}x avg)"
         )
     
     def get_trend_direction(self, close: np.ndarray, 
@@ -735,9 +745,9 @@ class TechnicalAnalyzer:
         
         diff_pct = (current_short - current_long) / current_long
         
-        if diff_pct > 0.01:  # Short EMA >1% above long
+        if diff_pct > 0.002:  # Short EMA >0.2% above long
             return 'bullish'
-        elif diff_pct < -0.01:  # Short EMA >1% below long
+        elif diff_pct < -0.002:  # Short EMA >0.2% below long
             return 'bearish'
         else:
             return 'neutral'
@@ -855,10 +865,9 @@ class MultiTimeframeAnalyzer:
             atr = self.analyzer.calculate_atr(entry_high, entry_low, entry_close)
             
             # Should trade decision - Relaxed for more opportunities
-            # Trade if: (aligned AND conf >= 0.50) OR (neutral trend AND STRONG signal)
-            has_strong_signal = entry_result.combined_signal in [Signal.STRONG_BUY, Signal.STRONG_SELL]
-            should_trade = (is_aligned and entry_result.confidence >= 0.50) or \
-                          (htf_trend == 'neutral' and has_strong_signal)
+            # Trade if: (aligned OR neutral trend) AND conf >= 0.25
+            # We only reject if trend is EXPLICITLY opposite to signal
+            should_trade = (is_aligned or htf_trend == 'neutral') and entry_result.confidence >= 0.25
             
             # DEBUG: Log detailed analysis
             log.info(f"[MTF] {symbol} Analysis:")
@@ -868,13 +877,13 @@ class MultiTimeframeAnalyzer:
             log.info(f"  Aligned: {is_aligned}")
             log.info(f"  Should Trade: {should_trade}")
             if not should_trade:
-                if not is_aligned and not has_strong_signal:
-                    log.info(f"  → NO TRADE: Trend ({htf_trend}) not aligned with entry signal ({entry_result.combined_signal.value})")
-                elif entry_result.confidence < 0.50:
-                    log.info(f"  → NO TRADE: Confidence {entry_result.confidence:.2f} < 0.50 threshold")
+                if not is_aligned and htf_trend != 'neutral':
+                    log.info(f"  → NO TRADE: Trend ({htf_trend}) conflicts with entry signal ({entry_result.combined_signal.value})")
+                elif entry_result.confidence < 0.25:
+                    log.info(f"  → NO TRADE: Confidence {entry_result.confidence:.2f} < 0.25 threshold")
             else:
-                if htf_trend == 'neutral' and has_strong_signal:
-                    log.info(f"  → READY TO TRADE: STRONG {entry_result.combined_signal.value} signal (bypassing neutral trend)")
+                if htf_trend == 'neutral':
+                    log.info(f"  → READY TO TRADE: {entry_result.combined_signal.value} signal (trend is neutral)")
                 else:
                     log.info(f"  → READY TO TRADE: {htf_trend.upper()} trend + {entry_result.combined_signal.value} entry")
             for ind in entry_result.indicators:
