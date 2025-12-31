@@ -108,15 +108,16 @@ class MultiStrategyBot:
         # Initialize paper trading simulator if enabled
         if self.paper_trade:
             # Get wallet balance for initial virtual balance
+            from src.utils.balance_utils import get_usd_balance
             try:
-                wallet = self.client.get_wallet_balance() if hasattr(self, 'client') and self.client else None
-                initial_balance = 200.0  # Default
-                if wallet:
-                    for bal in wallet:
-                        if bal.get('asset_symbol') == 'USDT':
-                            initial_balance = float(bal.get('available_balance', 200))
-                            break
-            except:
+                if hasattr(self, 'client') and self.client:
+                    initial_balance = get_usd_balance(self.client)
+                    if initial_balance == 0:
+                        initial_balance = 200.0  # Default if balance not found
+                else:
+                    initial_balance = 200.0  # Default if client not available
+            except Exception as e:
+                log.warning(f"Could not get balance for paper trading: {e}, using default 200.0")
                 initial_balance = 200.0
             
             # Get leverage from settings
@@ -211,8 +212,12 @@ class MultiStrategyBot:
                     try:
                         ticker = self.client.get_ticker(pair)
                         prices[pair] = float(ticker.get('mark_price', 0))
-                    except:
-                        pass
+                    except (KeyError, ValueError, TypeError, AttributeError) as e:
+                        log.debug(f"Could not get price for {pair}: {e}")
+                        continue
+                    except Exception as e:
+                        log.warning(f"Unexpected error getting ticker for {pair}: {e}")
+                        continue
                 
                 # Update prices and check exit conditions
                 self.paper_simulator.update_prices(prices)
@@ -326,6 +331,10 @@ class MultiStrategyBot:
     def _shutdown(self) -> None:
         """Perform graceful shutdown."""
         self.running = False
+        
+        # Stop WebSocket if running
+        if self.strategy_manager:
+            self.strategy_manager._stop_websocket()
         
         if self.scheduler and self.scheduler.running:
             self.scheduler.shutdown(wait=False)

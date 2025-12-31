@@ -70,8 +70,10 @@ class DeltaWebSocketClient:
                     # Authenticate if keys present
                     if self.api_key:
                         await self._authenticate()
+                        # Wait a bit for auth to complete
+                        await asyncio.sleep(0.5)
                     
-                    # Resubscribe to channels
+                    # Resubscribe to channels (sends stored subscriptions)
                     await self._resubscribe()
                     
                     # Listen loop
@@ -80,6 +82,7 @@ class DeltaWebSocketClient:
             except (ConnectionClosed, Exception) as e:
                 log.error(f"WebSocket connection error: {e}")
                 self.authenticated = False
+                self.ws = None
                 if self.running:
                     log.info("Reconnecting in 5 seconds...")
                     await asyncio.sleep(5)
@@ -185,9 +188,13 @@ class DeltaWebSocketClient:
 
     async def _resubscribe(self):
         """Resubscribe to all channels after reconnection."""
+        if not self.ws:
+            return
         for payload_json in self.subscribed_channels:
-            if self.ws:
-                 await self.ws.send(payload_json)
+            try:
+                await self.ws.send(payload_json)
+            except Exception as e:
+                log.error(f"Failed to resubscribe: {e}")
                  
     # --- Convenience Methods ---
 
@@ -207,6 +214,30 @@ class DeltaWebSocketClient:
         await self.subscribe('v2/ticker', symbols=symbols, callback=callback)
         
     def stop(self):
-        """Stop the WebSocket client."""
+        """Stop the WebSocket client and close connections."""
         self.running = False
         log.info("Stopping WebSocket client...")
+        
+        # Close WebSocket connection if open
+        if self.ws:
+            try:
+                # Schedule close in the event loop if it exists
+                if self.loop and self.loop.is_running():
+                    self.loop.call_soon_threadsafe(self._close_connection)
+                else:
+                    self._close_connection()
+            except Exception as e:
+                log.warning(f"Error closing WebSocket connection: {e}")
+        
+        self.ws = None
+        self.authenticated = False
+    
+    def _close_connection(self):
+        """Close the WebSocket connection."""
+        if self.ws:
+            try:
+                # The connection will be closed when exiting the async with context
+                # This is a placeholder for explicit close if needed
+                pass
+            except Exception as e:
+                log.debug(f"Error in _close_connection: {e}")

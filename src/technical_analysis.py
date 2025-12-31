@@ -587,8 +587,10 @@ class TechnicalAnalyzer:
             try:
                 adx = talib.ADX(high, low, close, timeperiod=period)
                 return float(adx[-1]) if not np.isnan(adx[-1]) else 0.0
-            except:
-                pass
+            except (ValueError, TypeError, AttributeError) as e:
+                log.debug(f"TA-Lib ADX calculation failed, using fallback: {e}")
+            except Exception as e:
+                log.warning(f"Unexpected error in TA-Lib ADX calculation: {e}")
         
         # Fallback ADX calculation
         plus_dm = np.zeros(len(close))

@@ -21,6 +21,7 @@ from src.strategies.correlated_hedging import CorrelatedHedgingStrategy
 from src.strategies.multi_timeframe import MultiTimeframeStrategy
 from src.delta_client import DeltaExchangeClient, Position
 from src.websocket_client import DeltaWebSocketClient
+from src.position_sync import PositionSyncManager
 from config.settings import settings
 from utils.logger import log
 from src.utils.persistence_manager import PersistenceManager
@@ -123,11 +124,17 @@ class StrategyManager:
         # State
         self.state = TradingState.ACTIVE
         self.persistence = PersistenceManager()
+        
+        # Position sync manager - SINGLE SOURCE OF TRUTH for positions
+        self.position_sync = PositionSyncManager(client)
 
         # WebSocket Client
         self.ws_client = DeltaWebSocketClient()
-        self.ws_thread = None
-        self._start_websocket_thread()
+        self.ws_thread: Optional[threading.Thread] = None
+        self.ws_loop: Optional[asyncio.AbstractEventLoop] = None
+        self.ws_connected = False
+        # Don't start WebSocket immediately - let it be optional
+        # self._start_websocket_thread()
         self.today_stats: Optional[DailyStats] = None
 
         # Initialize strategies
@@ -143,42 +150,71 @@ class StrategyManager:
 
     def _start_websocket_thread(self) -> None:
         """Start the WebSocket client in a separate thread."""
+        if self.ws_thread and self.ws_thread.is_alive():
+            log.warning("WebSocket thread already running")
+            return
+        
         self.ws_thread = threading.Thread(target=self._run_websocket_loop, daemon=True)
         self.ws_thread.start()
         log.info("WebSocket thread started")
 
     def _run_websocket_loop(self) -> None:
         """Run the asyncio event loop for WebSocket in a thread."""
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-
-        # Setup callbacks
-        loop.run_until_complete(self._setup_websocket_subscriptions())
-
-        # Run the connection
         try:
-            loop.run_until_complete(self.ws_client.connect())
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            self.ws_loop = loop
+
+            async def setup_and_connect():
+                """Setup subscriptions and connect."""
+                # Set up subscriptions first (they'll be stored for resubscription after connection)
+                # These calls store the subscription info but don't send yet (ws is None)
+                try:
+                    # Subscribe to balance/position updates for risk management
+                    await self.ws_client.subscribe_positions(self._on_ws_positions_update)
+                    
+                    # Subscribe to order updates for execution tracking
+                    await self.ws_client.subscribe_orders(self._on_ws_orders_update)
+                    
+                    # Subscribe to funding rates for Tier 1 strategy
+                    symbols = getattr(settings.trading, "trading_pairs", ["BTCUSD", "ETHUSD"])
+                    await self.ws_client.subscribe_funding_rate(symbols, self._on_ws_funding_update)
+                    
+                    # Subscribe to portfolio margin for liquidation alerts
+                    await self.ws_client.subscribe(
+                        "portfolio_margins", callback=self._on_ws_margin_update
+                    )
+                    
+                    log.info("WebSocket subscriptions configured (will activate on connect)")
+                except Exception as e:
+                    log.warning(f"Failed to set up WebSocket subscriptions: {e}")
+                
+                # Connect (which will establish connection and resubscribe automatically)
+                await self.ws_client.connect()
+            
+            # Run the connection
+            loop.run_until_complete(setup_and_connect())
         except Exception as e:
             log.error(f"WebSocket loop error: {e}")
+            import traceback
+            log.error(traceback.format_exc())
+        finally:
+            self.ws_loop = None
 
-    async def _setup_websocket_subscriptions(self) -> None:
-        """Subscribe to real-time channels."""
-        # Subscribe to balance/position updates for risk management
-        await self.ws_client.subscribe_positions(self._on_ws_positions_update)
-
-        # Subscribe to order updates for execution tracking
-        await self.ws_client.subscribe_orders(self._on_ws_orders_update)
-
-        # Subscribe to funding rates for Tier 1 strategy
-        symbols = getattr(settings.trading, "trading_pairs", ["BTCUSD", "ETHUSD"])
-        await self.ws_client.subscribe_funding_rate(symbols, self._on_ws_funding_update)
-
-        # Subscribe to portfolio margin for liquidation alerts (Phase 4.2)
-        await self.ws_client.subscribe(
-            "portfolio_margins", callback=self._on_ws_margin_update
-        )
-
-        log.info("WebSocket subscriptions set up")
+    def _stop_websocket(self) -> None:
+        """Stop the WebSocket client and thread."""
+        if self.ws_client:
+            self.ws_client.stop()
+        
+        if self.ws_loop and self.ws_loop.is_running():
+            # Schedule loop stop
+            self.ws_loop.call_soon_threadsafe(self.ws_loop.stop)
+        
+        if self.ws_thread and self.ws_thread.is_alive():
+            # Thread should stop when ws_client.stop() is called
+            self.ws_thread.join(timeout=5.0)
+            if self.ws_thread.is_alive():
+                log.warning("WebSocket thread did not stop within timeout")
 
     def _on_ws_positions_update(self, data: Dict[str, Any]) -> None:
         """Handle real-time position updates."""
@@ -204,13 +240,21 @@ class StrategyManager:
 
     def _initialize_strategies(self) -> None:
         """Initialize all strategy instances."""
-        # Tier 1: Funding Arbitrage
+        # =====================================================================
+        # DISABLED: Funding Arbitrage requires spot trading, which Delta Exchange
+        # India does not support via API. The strategy tries to:
+        #   1. Long spot (BTC/USDT) 
+        #   2. Short perpetual (BTCUSD)
+        # But spot trading calls will fail. Enable only if spot support is added.
+        # =====================================================================
+        # if StrategyType.FUNDING_ARBITRAGE in self.allocation:
+        #     self.strategies[StrategyType.FUNDING_ARBITRAGE] = FundingArbitrageStrategy(
+        #         client=self.client,
+        #         capital_allocation=self.allocation[StrategyType.FUNDING_ARBITRAGE],
+        #         dry_run=self.dry_run,
+        #     )
         if StrategyType.FUNDING_ARBITRAGE in self.allocation:
-            self.strategies[StrategyType.FUNDING_ARBITRAGE] = FundingArbitrageStrategy(
-                client=self.client,
-                capital_allocation=self.allocation[StrategyType.FUNDING_ARBITRAGE],
-                dry_run=self.dry_run,
-            )
+            log.warning("FundingArbitrageStrategy DISABLED - Delta India does not support spot trading API")
 
         # Tier 2: Correlated Hedging
         if StrategyType.CORRELATED_HEDGING in self.allocation:
@@ -218,6 +262,7 @@ class StrategyManager:
                 CorrelatedHedgingStrategy(
                     client=self.client,
                     capital_allocation=self.allocation[StrategyType.CORRELATED_HEDGING],
+                    position_sync=self.position_sync,
                     dry_run=self.dry_run,
                 )
             )
@@ -264,35 +309,15 @@ class StrategyManager:
 
         try:
             # Get account balance
+            from src.utils.balance_utils import get_usd_balance
             try:
-                balance_data = self.client.get_wallet_balance()
+                total_balance = get_usd_balance(self.client)
             except Exception as e:
                 if self.dry_run:
                     log.warning(f"Could not get wallet balance (dry run mode): {e}")
-                    balance_data = []  # Empty list to trigger default below
+                    total_balance = 0.0
                 else:
                     raise
-
-            # Balance API returns a list of balances - find USDT balance
-            total_balance = 0.0
-            if isinstance(balance_data, list):
-                for wallet in balance_data:
-                    asset = wallet.get("asset_symbol", "") or wallet.get(
-                        "asset", {}
-                    ).get("symbol", "")
-                    if asset in ["USDT", "USD"]:
-                        total_balance = float(
-                            wallet.get("available_balance", 0)
-                            or wallet.get("balance", 0)
-                            or 0
-                        )
-                        break
-                # If no USDT found, sum all available balances
-                if total_balance == 0:
-                    for wallet in balance_data:
-                        total_balance += float(wallet.get("available_balance", 0) or 0)
-            elif isinstance(balance_data, dict):
-                total_balance = float(balance_data.get("available_balance", 0))
 
             # If zero balance on testnet/dry-run, use a default for paper trading
             if total_balance == 0 and self.dry_run:
@@ -322,16 +347,21 @@ class StrategyManager:
                 self.state = TradingState.MAX_DRAWDOWN_HIT
                 return all_signals
 
-            # Get current positions (use override if provided)
+            # Get current positions (use override if provided for paper trading)
             if override_positions is not None:
                 positions = override_positions
                 log.info(f"Using {len(positions)} override positions for analysis")
             else:
-                positions = self.client.get_positions()
+                # SYNC POSITIONS FROM EXCHANGE - Single Source of Truth
+                snapshot = self.position_sync.sync_positions()
+                if not snapshot.sync_successful:
+                    log.error(f"Position sync failed: {snapshot.error}")
+                    if not self.dry_run:
+                        return all_signals  # Don't trade if we can't verify positions
+                
+                positions = self.position_sync.get_all_positions()
                 if positions:
-                    log.info(
-                        f"Retrieved {len(positions)} real positions from exchange: {[p.product_symbol for p in positions]}"
-                    )
+                    log.info(f"Retrieved {len(positions)} positions from exchange: {[p.product_symbol for p in positions]}")
 
             # Run each strategy
             for strategy_type, strategy in self.strategies.items():
@@ -367,7 +397,10 @@ class StrategyManager:
                     all_signals.extend(valid_signals)
 
                 except Exception as e:
-                    log.error(f"Strategy {strategy_type.value} failed: {e}")
+                    log.error(
+                        f"Strategy {strategy_type.value} failed during analysis: {e}",
+                        exc_info=True
+                    )
 
             # Execute signals
             if all_signals:
@@ -479,7 +512,10 @@ class StrategyManager:
                     self.today_stats.trades_executed += 1
 
             except Exception as e:
-                log.error(f"Failed to execute signal: {e}")
+                log.error(
+                    f"Failed to execute signal {signal.direction.value} for {signal.symbol}: {e}",
+                    exc_info=True
+                )
 
     def _execute_funding_arb_signal(
         self, signal: StrategySignal, strategy: FundingArbitrageStrategy

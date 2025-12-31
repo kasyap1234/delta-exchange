@@ -146,7 +146,7 @@ class FundingMonitor:
         Get current funding rate for a symbol.
         
         Args:
-            symbol: Trading symbol (e.g., 'BTCUSDT')
+            symbol: Trading symbol (e.g., 'BTCUSD')
             
         Returns:
             FundingRateData or None if not available

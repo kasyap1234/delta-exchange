@@ -48,6 +48,7 @@ class CorrelatedHedgingStrategy(BaseStrategy):
     def __init__(self, client: DeltaExchangeClient,
                  capital_allocation: float = 0.4,
                  hedge_ratio: float = 0.3,
+                 position_sync=None,
                  dry_run: bool = False):
         """
         Initialize correlated hedging strategy.
@@ -56,11 +57,13 @@ class CorrelatedHedgingStrategy(BaseStrategy):
             client: Delta Exchange API client
             capital_allocation: Portion of capital to allocate (default 40%)
             hedge_ratio: Portion to hedge (default 30%)
+            position_sync: PositionSyncManager for exchange position verification
             dry_run: If True, don't execute real trades
         """
         super().__init__(client, capital_allocation, dry_run)
         
         self.hedge_ratio = hedge_ratio
+        self.position_sync = position_sync
         
         # Initialize components
         self.analyzer = TechnicalAnalyzer()
@@ -68,6 +71,7 @@ class CorrelatedHedgingStrategy(BaseStrategy):
         self.hedge_manager = HedgeManager(
             client, 
             self.correlation,
+            position_sync=position_sync,
             default_hedge_ratio=hedge_ratio,
             dry_run=dry_run
         )
@@ -142,9 +146,22 @@ class CorrelatedHedgingStrategy(BaseStrategy):
         max_positions = getattr(settings.trading, 'max_open_positions', 3)
         capital_per_trade = available_capital / max_positions
         
+        # Track symbols we're planning to trade this cycle to prevent conflicts
+        symbols_in_use = set()
+        
+        # First, mark all symbols that already have positions
+        for symbol in self.trading_pairs:
+            if self.has_position(symbol):
+                symbols_in_use.add(symbol)
+        
+        # Also check exchange positions via position_sync if available
+        if self.position_sync:
+            for pos in self.position_sync.get_all_positions():
+                symbols_in_use.add(pos.product_symbol)
+        
         for symbol in self.trading_pairs:
             # Skip if already have position
-            if self.has_position(symbol):
+            if symbol in symbols_in_use:
                 continue
             
             # Analyze market
@@ -156,6 +173,12 @@ class CorrelatedHedgingStrategy(BaseStrategy):
             hedge_symbol = self.correlation.get_hedge_pair(symbol)
             should_hedge, hedge_ratio = self.correlation.should_hedge(symbol, hedge_symbol)
             
+            # CRITICAL: Skip if hedge symbol already has a position (would cause netting)
+            if should_hedge and hedge_symbol in symbols_in_use:
+                log.warning(f"[CORR_HEDGE] {symbol}: Skipping trade - hedge symbol {hedge_symbol} "
+                           f"already has a position (would cause netting)")
+                continue
+            
             # Check for strong signals
             signal = self._create_entry_signal(
                 symbol, ta_result, capital_per_trade,
@@ -165,6 +188,10 @@ class CorrelatedHedgingStrategy(BaseStrategy):
             
             if signal:
                 signals.append(signal)
+                # Mark both primary and hedge symbols as in use for this cycle
+                symbols_in_use.add(symbol)
+                if hedge_symbol and should_hedge:
+                    symbols_in_use.add(hedge_symbol)
         
         return signals
     

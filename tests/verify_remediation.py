@@ -31,14 +31,14 @@ def test_arb_logic():
     
     strategy = FundingArbitrageStrategy(mock_client, dry_run=False)
     
-    # Test spot symbol mapping
-    assert strategy._get_spot_symbol("BTCUSDT") == "BTC/USDT"
+    # Test spot symbol mapping (perpetual uses USD, spot uses USDT)
+    assert strategy._get_spot_symbol("BTCUSD") == "BTC/USDT"
     
     # Test entry
-    arb_pos = strategy.enter_arbitrage("BTCUSDT", 0.1, 0.0001)
+    arb_pos = strategy.enter_arbitrage("BTCUSD", 0.1, 0.0001)
     assert arb_pos is not None
     assert arb_pos.long_symbol == "BTC/USDT"
-    assert arb_pos.short_symbol == "BTCUSDT"
+    assert arb_pos.short_symbol == "BTCUSD"
     
     # Verify two orders were placed
     assert mock_client.place_order.call_count == 2
@@ -51,7 +51,7 @@ def test_profit_ladder():
     
     # Create a position
     pos = MTFPosition(
-        symbol="BTCUSDT",
+        symbol="BTCUSD",
         side='long',
         entry_price=50000,
         size=0.1,
@@ -64,7 +64,7 @@ def test_profit_ladder():
         current_trailing_stop=0,
         partial_exits=0
     )
-    strategy._mtf_positions["BTCUSDT"] = pos
+    strategy._mtf_positions["BTCUSD"] = pos
     
     # Test 1R level (Risk = 1000, Target = 51000)
     signal = strategy._check_profit_ladder(pos, 51000)
@@ -73,7 +73,7 @@ def test_profit_ladder():
     assert signal.metadata['r_multiple'] == 1.0
     
     # Apply partial exit (normally done by StrategyManager)
-    strategy.apply_partial_exit("BTCUSDT", signal.position_size)
+    strategy.apply_partial_exit("BTCUSD", signal.position_size)
     assert pos.partial_exits == 1
     assert pos.size < 0.1
     

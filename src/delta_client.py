@@ -60,7 +60,7 @@ class Order:
             size=float(data.get("size", 0)),
             unfilled_size=float(data.get("unfilled_size", 0)),
             limit_price=float(data.get("limit_price"))
-            if data.get("limit_price")
+            if data.get("limit_price") is not None
             else None,
             state=data.get("state", ""),
             created_at=data.get("created_at", ""),
@@ -356,7 +356,7 @@ class DeltaExchangeClient:
         Get product ID for a symbol.
 
         Args:
-            symbol: Product symbol (e.g., 'BTCUSDT')
+            symbol: Product symbol (e.g., 'BTCUSD')
 
         Returns:
             Product ID
@@ -403,7 +403,7 @@ class DeltaExchangeClient:
         Get historical OHLC candle data.
 
         Args:
-            symbol: Product symbol (e.g., 'BTCUSDT')
+            symbol: Product symbol (e.g., 'BTCUSD')
             resolution: Candle resolution (1m, 5m, 15m, 30m, 1h, 4h, 1d)
             start: Start timestamp (Unix seconds)
             end: End timestamp (Unix seconds)
@@ -523,39 +523,47 @@ class DeltaExchangeClient:
     def get_positions(self, symbols: Optional[List[str]] = None) -> List[Position]:
         """
         Get all open positions.
-
+        
         Args:
-            symbols: Optional list of symbols to filter (e.g., ['BTC', 'ETH'])
-
+            symbols: Optional list of underlying assets to filter (e.g., ['BTC', 'ETH'])
+                    If None, fetches positions for all configured trading pairs.
+        
         Returns:
             List of Position objects
         """
         all_positions = []
-
-        # Use trading pairs from settings if not specified
-        if symbols is None:
-            # Extract base assets from trading pairs
-            symbols = list(
-                set(
-                    pair.replace("USDT", "").replace("USD", "")
-                    for pair in settings.trading.trading_pairs
-                )
-            )
-
-        for symbol in symbols:
-            try:
-                response = self._request(
-                    "GET", "/v2/positions", params={"underlying_asset_symbol": symbol}
-                )
-                positions_data = response.get("result", [])
-
-                for p in positions_data:
-                    if float(p.get("size", 0)) != 0:
+        all_positions_data = []
+        
+        try:
+            # Delta API requires underlying_asset_symbol, so if no symbols specified,
+            # use the configured trading pairs
+            if symbols is None:
+                # Extract underlying assets from trading pairs (e.g., 'BTCUSD' -> 'BTC')
+                trading_pairs = getattr(settings.trading, 'trading_pairs', ['BTCUSD', 'ETHUSD', 'SOLUSD'])
+                symbols = list(set(pair.replace('USD', '').replace('USDT', '') for pair in trading_pairs))
+            
+            for symbol in symbols:
+                try:
+                    response = self._request(
+                        "GET", "/v2/positions", params={"underlying_asset_symbol": symbol}
+                    )
+                    all_positions_data.extend(response.get("result", []))
+                except Exception as e:
+                    log.debug(f"No positions for {symbol}: {e}")
+            
+            seen_positions = set()
+            for p in all_positions_data:
+                if float(p.get("size", 0)) != 0:
+                    pos_key = (p.get("product_id"), p.get("size"))
+                    if pos_key not in seen_positions:
                         all_positions.append(Position.from_api_response(p))
-            except Exception as e:
-                log.debug(f"No positions for {symbol}: {e}")
-
-        return all_positions
+                        seen_positions.add(pos_key)
+            
+            return all_positions
+        
+        except Exception as e:
+            log.error(f"Failed to get positions: {e}")
+            return []
 
     def get_open_orders(self, product_id: Optional[int] = None) -> List[Order]:
         """
@@ -569,7 +577,7 @@ class DeltaExchangeClient:
         """
         params = {"state": "open"}
         if product_id:
-            params["product_id"] = product_id
+            params["product_id"] = str(product_id)
 
         response = self._request("GET", "/v2/orders", params=params)
         orders_data = response.get("result", [])
@@ -765,6 +773,62 @@ class DeltaExchangeClient:
 
         response = self._request("DELETE", "/v2/orders", data=data)
         return Order.from_api_response(response.get("result", {}))
+
+    def get_order_by_id(self, order_id: int) -> Optional[Order]:
+        """
+        Get order details by ID for status verification.
+
+        Args:
+            order_id: Order ID to fetch
+
+        Returns:
+            Order object or None if not found
+        """
+        try:
+            response = self._request("GET", f"/v2/orders/{order_id}")
+            result = response.get("result", {})
+            if result:
+                return Order.from_api_response(result)
+            return None
+        except Exception as e:
+            log.warning(f"Failed to get order {order_id}: {e}")
+            return None
+
+    def wait_for_order_fill(
+        self, order_id: int, timeout_seconds: float = 10.0, poll_interval: float = 0.5
+    ) -> Optional[Order]:
+        """
+        Poll order status until filled, cancelled, or timeout.
+
+        Args:
+            order_id: Order ID to monitor
+            timeout_seconds: Maximum time to wait
+            poll_interval: Time between polls
+
+        Returns:
+            Final Order object or None on timeout
+        """
+        import time as time_module
+        
+        start = time_module.time()
+        while time_module.time() - start < timeout_seconds:
+            order = self.get_order_by_id(order_id)
+            if order is None:
+                time_module.sleep(poll_interval)
+                continue
+            
+            # Check terminal states
+            if order.state in ['filled', 'closed']:
+                log.info(f"Order {order_id} filled: size={order.size}, unfilled={order.unfilled_size}")
+                return order
+            elif order.state in ['cancelled', 'rejected']:
+                log.warning(f"Order {order_id} {order.state}")
+                return order
+            
+            time_module.sleep(poll_interval)
+        
+        log.warning(f"Order {order_id} verification timed out after {timeout_seconds}s")
+        return self.get_order_by_id(order_id)
 
     def place_batch_orders(self, orders: List[Dict]) -> List[Dict]:
         """

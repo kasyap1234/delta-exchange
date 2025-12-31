@@ -5,7 +5,7 @@ Backtest Runner - CLI interface for running backtests.
 Usage:
     python run_backtest.py                      # Run with defaults (30 days, all pairs)
     python run_backtest.py --days 60            # Backtest last 60 days
-    python run_backtest.py --symbol BTCUSDT     # Backtest single symbol
+    python run_backtest.py --symbol BTCUSD     # Backtest single symbol
     python run_backtest.py --capital 5000       # Start with $5000
     python run_backtest.py --leverage 10        # Use 10x leverage
     python run_backtest.py --output report.txt  # Save report to file
@@ -186,7 +186,7 @@ def parse_args():
 Examples:
   python run_backtest.py                         # Quick test, 30 days
   python run_backtest.py --days 60               # Last 60 days
-  python run_backtest.py --symbol BTCUSDT        # Single symbol
+  python run_backtest.py --symbol BTCUSD        # Single symbol
   python run_backtest.py --capital 5000          # $5000 starting capital
   python run_backtest.py --all                   # All configured pairs
   python run_backtest.py --output results.txt   # Save to file
@@ -202,7 +202,7 @@ Examples:
     )
 
     parser.add_argument(
-        "--symbol", "-s", type=str, help="Single symbol to backtest (e.g., BTCUSDT)"
+        "--symbol", "-s", type=str, help="Single symbol to backtest (e.g., BTCUSD)"
     )
 
     parser.add_argument(

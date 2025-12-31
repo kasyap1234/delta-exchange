@@ -337,8 +337,8 @@ class FundingArbitrageStrategy(BaseStrategy):
         
         try:
             # For true delta-neutral, we need:
-            # 1. Long spot (BTC/USDT)
-            # 2. Short perpetual (BTCUSD or BTCUSDT)
+            # 1. Long spot (BTC/USDT) - spot uses USDT
+            # 2. Short perpetual (BTCUSD) - perpetuals use USD format
             
             spot_symbol = self._get_spot_symbol(symbol)
             log.info(f"Entering funding arbitrage: SHORT Perp {size} {symbol} + LONG Spot {size} {spot_symbol}")
@@ -386,8 +386,11 @@ class FundingArbitrageStrategy(BaseStrategy):
             return None
 
     def _get_spot_symbol(self, perp_symbol: str) -> str:
-        """Helper to get spot symbol from perp symbol."""
-        # Simple mapping: BTCUSDT -> BTC/USDT, BTCUSD -> BTC/USDT
+        """Helper to get spot symbol from perp symbol.
+        
+        Perpetual contracts use USD format (BTCUSD), spot uses USDT (BTC/USDT).
+        """
+        # Extract base asset: BTCUSD -> BTC, BTCUSDT -> BTC (for backward compatibility)
         base = perp_symbol.replace('USDT', '').replace('USD', '')
         return f"{base}/USDT"
     

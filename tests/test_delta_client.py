@@ -66,8 +66,8 @@ class TestDeltaExchangeClient:
         mock_response.json.return_value = {
             'success': True,
             'result': [
-                {'id': 1, 'symbol': 'BTCUSDT', 'description': 'BTC Perpetual'},
-                {'id': 2, 'symbol': 'ETHUSDT', 'description': 'ETH Perpetual'},
+                {'id': 1, 'symbol': 'BTCUSD', 'description': 'BTC Perpetual'},
+                {'id': 2, 'symbol': 'ETHUSD', 'description': 'ETH Perpetual'},
             ]
         }
         mock_request.return_value = mock_response
@@ -75,8 +75,8 @@ class TestDeltaExchangeClient:
         products = client.get_products()
         
         assert len(products) == 2
-        assert products[0]['symbol'] == 'BTCUSDT'
-        assert client._products_cache['BTCUSDT'] == 1
+        assert products[0]['symbol'] == 'BTCUSD'
+        assert client._products_cache['BTCUSD'] == 1
     
     @patch('requests.Session.request')
     def test_get_ticker(self, mock_request, client):
@@ -86,7 +86,7 @@ class TestDeltaExchangeClient:
         mock_response.json.return_value = {
             'success': True,
             'result': {
-                'symbol': 'BTCUSDT',
+                'symbol': 'BTCUSD',
                 'mark_price': '45000.50',
                 'close': 45000,
                 'high': 46000,
@@ -95,9 +95,9 @@ class TestDeltaExchangeClient:
         }
         mock_request.return_value = mock_response
         
-        ticker = client.get_ticker('BTCUSDT')
+        ticker = client.get_ticker('BTCUSD')
         
-        assert ticker['symbol'] == 'BTCUSDT'
+        assert ticker['symbol'] == 'BTCUSD'
         assert ticker['mark_price'] == '45000.50'
     
     @patch('requests.Session.request')
@@ -114,7 +114,7 @@ class TestDeltaExchangeClient:
         }
         mock_request.return_value = mock_response
         
-        candles = client.get_candles('BTCUSDT', resolution='15m')
+        candles = client.get_candles('BTCUSD', resolution='15m')
         
         assert len(candles) == 2
         assert isinstance(candles[0], Candle)
@@ -129,7 +129,7 @@ class TestDeltaExchangeClient:
         products_response.ok = True
         products_response.json.return_value = {
             'success': True,
-            'result': [{'id': 1, 'symbol': 'BTCUSDT'}]
+            'result': [{'id': 1, 'symbol': 'BTCUSD'}]
         }
         
         # Second mock for place_order
@@ -140,7 +140,7 @@ class TestDeltaExchangeClient:
             'result': {
                 'id': 12345,
                 'product_id': 1,
-                'product_symbol': 'BTCUSDT',
+                'product_symbol': 'BTCUSD',
                 'side': 'buy',
                 'order_type': 'market_order',
                 'size': 0.1,
@@ -154,7 +154,7 @@ class TestDeltaExchangeClient:
         mock_request.side_effect = [products_response, order_response]
         
         order = client.place_order(
-            symbol='BTCUSDT',
+            symbol='BTCUSD',
             side=OrderSide.BUY,
             size=0.1,
             order_type=OrderType.MARKET
@@ -174,7 +174,7 @@ class TestDeltaExchangeClient:
             'result': [
                 {
                     'product_id': 1,
-                    'product_symbol': 'BTCUSDT',
+                    'product_symbol': 'BTCUSD',
                     'size': 0.5,
                     'entry_price': 45000,
                     'mark_price': 46000,
@@ -189,7 +189,7 @@ class TestDeltaExchangeClient:
         
         assert len(positions) == 1
         assert isinstance(positions[0], Position)
-        assert positions[0].product_symbol == 'BTCUSDT'
+        assert positions[0].product_symbol == 'BTCUSD'
         assert positions[0].size == 0.5
     
     @patch('requests.Session.request')
@@ -202,7 +202,7 @@ class TestDeltaExchangeClient:
             'result': {
                 'id': 12345,
                 'product_id': 1,
-                'product_symbol': 'BTCUSDT',
+                'product_symbol': 'BTCUSD',
                 'side': 'buy',
                 'order_type': 'limit_order',
                 'size': 0.1,
@@ -256,7 +256,7 @@ class TestDataClasses:
         data = {
             'id': 12345,
             'product_id': 1,
-            'product_symbol': 'BTCUSDT',
+            'product_symbol': 'BTCUSD',
             'side': 'buy',
             'order_type': 'limit_order',
             'size': '0.1',
@@ -277,7 +277,7 @@ class TestDataClasses:
         """Test Position parsing from API response."""
         data = {
             'product_id': 1,
-            'product_symbol': 'BTCUSDT',
+            'product_symbol': 'BTCUSD',
             'size': '0.5',
             'entry_price': '45000',
             'mark_price': '46000',

@@ -11,7 +11,7 @@ A Python-based automated cryptocurrency trading bot for Delta Exchange that uses
   - 2% stop-loss
   - 4% take-profit (2:1 reward-to-risk ratio)
   - Maximum 3 open positions
-- **Multi-Asset Support**: Trade BTC/USDT, ETH/USDT, SOL/USDT simultaneously
+- **Multi-Asset Support**: Trade BTC/USD, ETH/USD, SOL/USD perpetual contracts simultaneously
 - **Background Service**: Runs continuously with configurable intervals
 - **Dry Run Mode**: Test strategy without executing real trades
 - **Comprehensive Logging**: Trade audit trail and detailed logs
@@ -117,7 +117,7 @@ Edit `.env` or `config/settings.py`:
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `TRADING_PAIRS` | BTCUSDT,ETHUSDT,SOLUSDT | Pairs to trade |
+| `TRADING_PAIRS` | BTCUSD,ETHUSD,SOLUSD | Pairs to trade (USD format for perpetuals) |
 | `MAX_CAPITAL_PER_TRADE` | 0.10 | 10% of capital per trade |
 | `STOP_LOSS_PCT` | 0.02 | 2% stop-loss |
 | `TAKE_PROFIT_PCT` | 0.04 | 4% take-profit |

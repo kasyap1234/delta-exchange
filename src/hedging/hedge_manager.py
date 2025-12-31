@@ -1,9 +1,12 @@
 """
 Hedge Manager Module.
 Manages hedge positions and ensures primary/hedge positions are kept in sync.
+
+NOTE: This module now uses exchange as source of truth for position EXISTENCE,
+but maintains internal tracking for hedge pair relationships.
 """
 
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, TYPE_CHECKING
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -11,6 +14,9 @@ from enum import Enum
 from src.delta_client import DeltaExchangeClient, Position, Order, OrderSide, OrderType
 from src.hedging.correlation import CorrelationCalculator, CorrelationResult
 from utils.logger import log
+
+if TYPE_CHECKING:
+    from src.position_sync import PositionSyncManager
 
 
 class HedgeStatus(str, Enum):
@@ -101,15 +107,19 @@ class HedgeManager:
     """
     Manages creation, tracking, and liquidation of hedged positions.
     
+    IMPORTANT: This manager now uses exchange positions as the source of truth.
+    Internal tracking is only for correlation between primary/hedge pairs.
+    
     Responsibilities:
     1. Create hedge orders when primary orders are placed
-    2. Track primary/hedge pairs
+    2. Track primary/hedge pair mappings (NOT position state)
     3. Close hedges when primaries are closed
-    4. Rebalance hedges if correlation changes
+    4. Verify positions exist on exchange before operations
     """
     
     def __init__(self, client: DeltaExchangeClient,
                  correlation_calculator: CorrelationCalculator,
+                 position_sync: Optional['PositionSyncManager'] = None,
                  default_hedge_ratio: float = 0.3,
                  dry_run: bool = False):
         """
@@ -118,17 +128,45 @@ class HedgeManager:
         Args:
             client: Delta Exchange API client
             correlation_calculator: For calculating pair correlations
+            position_sync: Position sync manager for exchange position verification
             default_hedge_ratio: Default portion to hedge (0.0-1.0)
             dry_run: If True, don't execute real orders
         """
         self.client = client
         self.correlation = correlation_calculator
+        self.position_sync = position_sync
         self.default_hedge_ratio = default_hedge_ratio
         self.dry_run = dry_run
         
-        # Track active hedged positions
+        # Track hedged position records (for hedge pair relationships and metadata)
+        # The ACTUAL position existence is verified against exchange
         self._positions: Dict[str, HedgedPosition] = {}
+        
+        # Track hedge pair mappings for quick lookup: {primary_symbol: position_id}
+        self._primary_to_position_id: Dict[str, str] = {}
         self._position_counter = 0
+    
+    def _verify_position_exists(self, symbol: str) -> bool:
+        """Verify a position exists on the exchange."""
+        if self.position_sync:
+            return self.position_sync.has_position(symbol)
+        # Fallback: fetch directly
+        positions = self.client.get_positions()
+        for p in positions:
+            if p.product_symbol == symbol and p.size != 0:
+                return True
+        return False
+    
+    def _get_exchange_position(self, symbol: str):
+        """Get actual position from exchange."""
+        if self.position_sync:
+            return self.position_sync.get_position(symbol)
+        positions = self.client.get_positions()
+        for p in positions:
+            if p.product_symbol == symbol:
+                return p
+        return None
+    
     
     def create_hedged_position(self, 
                                primary_symbol: str,
@@ -193,30 +231,97 @@ class HedgeManager:
         self._position_counter += 1
         position_id = f"hedge_{self._position_counter}_{datetime.now().strftime('%Y%m%d%H%M%S')}"
         
+        # Track orders for potential rollback
+        primary_order = None
+        hedge_order = None
+        
         # Execute orders
         if not self.dry_run:
             try:
                 # 1. Place Primary Order
                 primary_order_side = OrderSide.BUY if primary_side == 'long' else OrderSide.SELL
-                self.client.place_order(
+                primary_order = self.client.place_order(
                     symbol=primary_symbol,
                     side=primary_order_side,
                     size=primary_size,
                     order_type=OrderType.MARKET
                 )
-                log.info(f"Primary order placed: {primary_side.upper()} {primary_size:.6f} {primary_symbol}")
-
+                
+                if primary_order is None:
+                    log.error(f"Primary order placement returned None for {primary_symbol}")
+                    return None
+                
+                log.info(f"Primary order placed: {primary_side.upper()} {primary_size:.6f} {primary_symbol} (ID: {primary_order.id})")
+                
+                # Wait for primary order to fill
+                verified_primary = self.client.wait_for_order_fill(
+                    primary_order.id, timeout_seconds=10.0, poll_interval=0.5
+                )
+                
+                if verified_primary and verified_primary.state in ['cancelled', 'rejected']:
+                    log.error(f"Primary order {primary_order.id} was {verified_primary.state}")
+                    return None
+                
                 # 2. Place Hedge Order
                 hedge_order_side = OrderSide.SELL if hedge_side == 'short' else OrderSide.BUY
-                self.client.place_order(
+                hedge_order = self.client.place_order(
                     symbol=hedge_symbol,
                     side=hedge_order_side,
                     size=hedge_size,
                     order_type=OrderType.MARKET
                 )
-                log.info(f"Hedge order placed: {hedge_side.upper()} {hedge_size:.6f} {hedge_symbol}")
+                
+                if hedge_order is None:
+                    log.error(f"Hedge order placement returned None for {hedge_symbol}")
+                    # ROLLBACK: Close the primary position since hedge failed
+                    log.warning(f"Rolling back primary position {primary_symbol} due to hedge failure")
+                    try:
+                        rollback_side = OrderSide.SELL if primary_side == 'long' else OrderSide.BUY
+                        self.client.place_order(
+                            symbol=primary_symbol,
+                            side=rollback_side,
+                            size=primary_size,
+                            order_type=OrderType.MARKET
+                        )
+                        log.info(f"Rollback successful for {primary_symbol}")
+                    except Exception as rollback_error:
+                        log.error(f"CRITICAL: Rollback failed for {primary_symbol}: {rollback_error}")
+                    return None
+                
+                log.info(f"Hedge order placed: {hedge_side.upper()} {hedge_size:.6f} {hedge_symbol} (ID: {hedge_order.id})")
+                
+                # Wait for hedge order to fill
+                verified_hedge = self.client.wait_for_order_fill(
+                    hedge_order.id, timeout_seconds=10.0, poll_interval=0.5
+                )
+                
+                if verified_hedge and verified_hedge.state in ['cancelled', 'rejected']:
+                    log.warning(f"Hedge order {hedge_order.id} was {verified_hedge.state} - primary still open!")
+                    # Note: Not rolling back primary - user may want to keep the position
+                
+                # CRITICAL: Force position sync after order placement
+                # This ensures the new positions are visible before any verification
+                import time
+                time.sleep(0.5)  # Small delay for exchange to update
+                if self.position_sync:
+                    self.position_sync.sync_positions()
+                    log.info("Position sync completed after order placement")
+                    
             except Exception as e:
                 log.error(f"Failed to place hedged position orders: {e}")
+                # Attempt rollback if primary was placed
+                if primary_order:
+                    log.warning(f"Attempting rollback of primary {primary_symbol}")
+                    try:
+                        rollback_side = OrderSide.SELL if primary_side == 'long' else OrderSide.BUY
+                        self.client.place_order(
+                            symbol=primary_symbol,
+                            side=rollback_side,
+                            size=primary_size,
+                            order_type=OrderType.MARKET
+                        )
+                    except Exception:
+                        log.error(f"CRITICAL: Rollback failed - manual intervention needed for {primary_symbol}")
                 return None
         else:
             log.info(f"[DRY RUN] Would place primary: {primary_side.upper()} {primary_size:.6f} {primary_symbol}")
@@ -242,6 +347,7 @@ class HedgeManager:
         )
         
         self._positions[position_id] = hedged_pos
+        self._primary_to_position_id[primary_symbol] = position_id
         
         log.info(f"Created hedged position {position_id}: "
                 f"{primary_side.upper()} {primary_symbol} / "
@@ -424,8 +530,41 @@ class HedgeManager:
         return list(self._positions.values())
     
     def get_active_positions(self) -> List[HedgedPosition]:
-        """Get all active hedged positions."""
-        return [p for p in self._positions.values() if p.status == HedgeStatus.ACTIVE]
+        """
+        Get all active hedged positions, verified against exchange.
+        
+        IMPORTANT: This now checks if positions actually exist on the exchange.
+        Positions that no longer exist (closed externally) are marked as CLOSED.
+        
+        In dry-run mode, skip exchange verification since no real orders are placed.
+        """
+        active = []
+        
+        for pos in self._positions.values():
+            if pos.status != HedgeStatus.ACTIVE:
+                continue
+            
+            # In dry-run mode, skip exchange verification
+            if self.dry_run:
+                active.append(pos)
+                continue
+            
+            # Verify primary position still exists on exchange
+            primary_exists = self._verify_position_exists(pos.primary_symbol)
+            
+            if not primary_exists:
+                # Position was closed externally (manually or by SL/TP)
+                log.warning(f"Hedged position {pos.id} primary {pos.primary_symbol} "
+                           f"no longer exists on exchange - marking as closed")
+                pos.status = HedgeStatus.CLOSED
+                # Also remove from mapping
+                if pos.primary_symbol in self._primary_to_position_id:
+                    del self._primary_to_position_id[pos.primary_symbol]
+                continue
+            
+            active.append(pos)
+        
+        return active
     
     def get_total_exposure(self) -> float:
         """

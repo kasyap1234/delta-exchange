@@ -37,14 +37,14 @@ class CorrelationResult:
         """
         Calculate optimal hedge ratio based on correlation.
         
-        Higher correlation = can use larger hedge.
-        Lower correlation = reduce hedge size or skip.
+        FIXED: When correlation is sufficient (>0.6), use the full base ratio.
+        Only reduce or skip hedge when correlation is too weak.
         
         Args:
-            base_ratio: Base hedge ratio when correlation is perfect
+            base_ratio: Base hedge ratio to use when correlation is sufficient
             
         Returns:
-            Adjusted hedge ratio
+            Hedge ratio (0.0 if correlation too weak, else base_ratio)
         """
         if not self.is_reliable:
             return 0.0
@@ -52,11 +52,13 @@ class CorrelationResult:
         if self.correlation < 0.5:
             return 0.0  # Too weak to hedge
         
-        # Scale hedge ratio by correlation strength
-        # At correlation 1.0 -> full base_ratio
-        # At correlation 0.7 -> 70% of base_ratio
-        # At correlation 0.5 -> 50% of base_ratio
-        return base_ratio * self.correlation
+        if self.correlation < 0.6:
+            # Borderline - use reduced hedge
+            return base_ratio * 0.5
+        
+        # Correlation >= 0.6: Use full base ratio
+        # (Previously: return base_ratio * self.correlation caused under-hedging)
+        return base_ratio
 
 
 class CorrelationCalculator:

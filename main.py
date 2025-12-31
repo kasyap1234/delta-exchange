@@ -101,9 +101,9 @@ class TradingBot:
             log.error("Failed to connect to Delta Exchange API")
             return False
         
-        # Initialize strategy and executor
-        self.strategy = TradingStrategy(self.client, dry_run=self.dry_run)
+        # Initialize executor FIRST, then pass to strategy
         self.executor = TradeExecutor(self.client, dry_run=self.dry_run)
+        self.strategy = TradingStrategy(self.client, self.executor, dry_run=self.dry_run)
         
         log.info("Initialization complete!")
         return True
@@ -126,14 +126,8 @@ class TradingBot:
         
         try:
             # Get account balance
-            balance_data = self.client.get_wallet_balance()
-            # balance_data is a list of asset balances, find USDT
-            available_balance = 0.0
-            if isinstance(balance_data, list):
-                for asset in balance_data:
-                    if asset.get('asset_symbol') == 'USD':
-                        available_balance = float(asset.get('available_balance', 0))
-                        break
+            from src.utils.balance_utils import get_usd_balance
+            available_balance = get_usd_balance(self.client)
             log.info(f"Available Balance: ${available_balance:.2f}")
             
             # Get open positions

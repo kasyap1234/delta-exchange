@@ -196,7 +196,7 @@ class HistoricalDataFetcher:
         Fetch historical data for a symbol.
 
         Args:
-            symbol: Trading pair (e.g., 'BTCUSDT')
+            symbol: Trading pair (e.g., 'BTCUSD')
             resolution: Candle resolution (1m, 5m, 15m, 30m, 1h, 4h, 1d)
             days_back: Number of days to fetch
             end_date: End date (defaults to now)
