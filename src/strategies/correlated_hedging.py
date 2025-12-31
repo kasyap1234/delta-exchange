@@ -435,39 +435,61 @@ class CorrelatedHedgingStrategy(BaseStrategy):
                 return None
             
             # Calculate SL/TP thresholds
-            sl_pct = getattr(settings.trading, 'stop_loss_pct', 0.02)  # 2% stop loss
-            tp_pct = getattr(settings.trading, 'take_profit_pct', 0.04)  # 4% take profit
+            sl_pct = getattr(settings.trading, 'stop_loss_pct', 0.02)
+            tp_pct = getattr(settings.trading, 'take_profit_pct', 0.04)
+            trailing_pct = getattr(settings.trading, 'trailing_stop_pct', 0.015)  # 1.5% trailing
             
+            # Basic SL/TP levels
             if side == 'long':
-                sl_price = entry_price * (1 - sl_pct)
+                base_sl = entry_price * (1 - sl_pct)
                 tp_price = entry_price * (1 + tp_pct)
-            else:
-                sl_price = entry_price * (1 + sl_pct)
+                
+                # Trailing Logic: If price moves up, SL moves up
+                # Simple approximation: If we are in profit, trailing stop is Current - Trailing%
+                # We use MAX(Base SL, Current * (1-Trailing))
+                if current_price > entry_price:
+                    trailing_sl = current_price * (1 - trailing_pct)
+                    current_sl = max(base_sl, trailing_sl)
+                else:
+                    current_sl = base_sl
+                    
+            else: # SHORT
+                base_sl = entry_price * (1 + sl_pct)
                 tp_price = entry_price * (1 - tp_pct)
+                
+                # Trailing Logic: If price moves down, SL moves down
+                # We use MIN(Base SL, Current * (1+Trailing))
+                if current_price < entry_price:
+                    trailing_sl = current_price * (1 + trailing_pct)
+                    current_sl = min(base_sl, trailing_sl)
+                else:
+                    current_sl = base_sl
             
             # Calculate current P&L %
             if side == 'long':
                 pnl_pct = (current_price - entry_price) / entry_price * 100
+                distance_to_sl = (current_price - current_sl) / current_price * 100
             else:
                 pnl_pct = (entry_price - current_price) / entry_price * 100
+                distance_to_sl = (current_sl - current_price) / current_price * 100
             
             # Log position status
             log.info(f"[EXIT CHECK] {symbol} {side.upper()}: "
                     f"Entry=${entry_price:.2f}, Current=${current_price:.2f}, "
-                    f"PnL={pnl_pct:+.2f}%, SL=${sl_price:.2f}, TP=${tp_price:.2f}")
+                    f"PnL={pnl_pct:+.2f}%, SL=${current_sl:.2f} (Dist: {distance_to_sl:.2f}%), TP=${tp_price:.2f}")
             
             should_exit = False
             exit_reason = ""
             
             if side == 'long':
-                if current_price <= sl_price:
+                if current_price <= current_sl:
                     should_exit = True
                     exit_reason = f"Stop-loss hit ({pnl_pct:.1f}%)"
                 elif current_price >= tp_price:
                     should_exit = True
                     exit_reason = f"Take-profit hit ({pnl_pct:.1f}%)"
             else:
-                if current_price >= sl_price:
+                if current_price >= current_sl:
                     should_exit = True
                     exit_reason = f"Stop-loss hit ({pnl_pct:.1f}%)"
                 elif current_price <= tp_price:
