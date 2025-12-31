@@ -276,8 +276,26 @@ class CorrelatedHedgingStrategy(BaseStrategy):
         if higher_tf_trend not in ["unknown", "neutral"] and higher_tf_trend != signal_trend:
             log.info(f"  → REJECTED: Signal ({signal_trend}) conflicts with 4h trend ({higher_tf_trend})")
             return None
+            
+        # ===== CRITICAL: RSI Safety Filter (Don't Sell Low / Buy High) =====
+        rsi_value = None
+        for ind in ta_result.indicators:
+            if ind.name == "RSI":
+                rsi_value = ind.value
+                break
         
-        log.info(f"  → APPROVED: Signal aligned with 4h trend")
+        if rsi_value is not None:
+            # Filter: Don't SHORT if RSI is already Oversold (< 35)
+            if direction == SignalDirection.SHORT and rsi_value < 35:
+                log.info(f"  → REJECTED: RSI {rsi_value:.1f} is too low for SHORT (Oversold < 35)")
+                return None
+            
+            # Filter: Don't LONG if RSI is already Overbought (> 65)
+            if direction == SignalDirection.LONG and rsi_value > 65:
+                log.info(f"  → REJECTED: RSI {rsi_value:.1f} is too high for LONG (Overbought > 65)")
+                return None
+        
+        log.info(f"  → APPROVED: Signal aligned with 4h trend & RSI ok")
         
         # Get current price
         try:
