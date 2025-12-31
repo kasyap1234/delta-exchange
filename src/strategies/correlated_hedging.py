@@ -358,91 +358,128 @@ class CorrelatedHedgingStrategy(BaseStrategy):
             return None
     
     def _check_exit_signals(self) -> List[StrategySignal]:
-        """Check for exit signals on existing positions."""
-        signals = []
+        """Check for exit signals on existing positions.
         
+        IMPORTANT: Checks BOTH internal hedge positions AND raw exchange positions.
+        This ensures we catch positions created outside the hedge tracking system.
+        """
+        signals = []
+        checked_symbols = set()
+        
+        # 1. First check hedge_manager positions (for positions we created)
         for hedged_pos in self.hedge_manager.get_active_positions():
-            # Check primary position
             symbol = hedged_pos.primary_symbol
+            checked_symbols.add(symbol)
             
-            ta_result = self._analyze_market(symbol)
-            if ta_result is None:
-                continue
+            exit_signal = self._check_position_for_exit(
+                symbol=symbol,
+                entry_price=hedged_pos.primary_entry_price,
+                side=hedged_pos.primary_side,
+                size=hedged_pos.primary_size,
+                position_id=hedged_pos.id,
+                is_hedge=True
+            )
+            if exit_signal:
+                signals.append(exit_signal)
+        
+        # 2. Also check exchange positions directly (catches orphan positions)
+        if self.position_sync:
+            for pos in self.position_sync.get_all_positions():
+                symbol = pos.product_symbol
+                if symbol in checked_symbols:
+                    continue  # Already checked via hedge_manager
+                
+                checked_symbols.add(symbol)
+                side = 'long' if pos.size > 0 else 'short'
+                
+                exit_signal = self._check_position_for_exit(
+                    symbol=symbol,
+                    entry_price=pos.entry_price,
+                    side=side,
+                    size=abs(pos.size),
+                    position_id=None,
+                    is_hedge=False
+                )
+                if exit_signal:
+                    signals.append(exit_signal)
+        
+        return signals
+    
+    def _check_position_for_exit(self, symbol: str, entry_price: float, side: str,
+                                  size: float, position_id: Optional[str],
+                                  is_hedge: bool) -> Optional[StrategySignal]:
+        """Check a single position for exit conditions."""
+        try:
+            ticker = self.client.get_ticker(symbol)
+            current_price = float(ticker.get('mark_price', 0))
+            
+            if current_price <= 0:
+                return None
+            
+            # Calculate SL/TP thresholds
+            sl_pct = getattr(settings.trading, 'stop_loss_pct', 0.02)  # 2% stop loss
+            tp_pct = getattr(settings.trading, 'take_profit_pct', 0.04)  # 4% take profit
+            
+            if side == 'long':
+                sl_price = entry_price * (1 - sl_pct)
+                tp_price = entry_price * (1 + tp_pct)
+            else:
+                sl_price = entry_price * (1 + sl_pct)
+                tp_price = entry_price * (1 - tp_pct)
+            
+            # Calculate current P&L %
+            if side == 'long':
+                pnl_pct = (current_price - entry_price) / entry_price * 100
+            else:
+                pnl_pct = (entry_price - current_price) / entry_price * 100
+            
+            # Log position status
+            log.info(f"[EXIT CHECK] {symbol} {side.upper()}: "
+                    f"Entry=${entry_price:.2f}, Current=${current_price:.2f}, "
+                    f"PnL={pnl_pct:+.2f}%, SL=${sl_price:.2f}, TP=${tp_price:.2f}")
             
             should_exit = False
             exit_reason = ""
             
-            # Check for signal reversal
-            if hedged_pos.primary_side == 'long':
-                if ta_result.combined_signal in [Signal.SELL, Signal.STRONG_SELL]:
+            if side == 'long':
+                if current_price <= sl_price:
                     should_exit = True
-                    exit_reason = "Signal reversed to bearish"
+                    exit_reason = f"Stop-loss hit ({pnl_pct:.1f}%)"
+                elif current_price >= tp_price:
+                    should_exit = True
+                    exit_reason = f"Take-profit hit ({pnl_pct:.1f}%)"
             else:
-                if ta_result.combined_signal in [Signal.BUY, Signal.STRONG_BUY]:
+                if current_price >= sl_price:
                     should_exit = True
-                    exit_reason = "Signal reversed to bullish"
+                    exit_reason = f"Stop-loss hit ({pnl_pct:.1f}%)"
+                elif current_price <= tp_price:
+                    should_exit = True
+                    exit_reason = f"Take-profit hit ({pnl_pct:.1f}%)"
             
-            # Check stop-loss / take-profit
-            try:
-                ticker = self.client.get_ticker(symbol)
-                current_price = float(ticker.get('mark_price', 0))
+            if should_exit:
+                log.info(f"[EXIT TRIGGERED] {symbol}: {exit_reason}")
+                direction = SignalDirection.CLOSE_LONG if side == 'long' else SignalDirection.CLOSE_SHORT
                 
-                # Simple SL/TP check
-                entry = hedged_pos.primary_entry_price
-                sl_pct = getattr(settings.trading, 'stop_loss_pct', 0.05)
-                tp_pct = getattr(settings.trading, 'take_profit_pct', 0.10)
-                
-                # Calculate thresholds
-                if hedged_pos.primary_side == 'long':
-                    sl_price = entry * (1 - sl_pct)
-                    tp_price = entry * (1 + tp_pct)
-                else:
-                    sl_price = entry * (1 + sl_pct)
-                    tp_price = entry * (1 - tp_pct)
-                
-                # Log position status every check
-                log.info(f"[EXIT CHECK] {symbol} {hedged_pos.primary_side.upper()}: "
-                        f"Entry=${entry:.2f}, Current=${current_price:.2f}, "
-                        f"SL=${sl_price:.2f}, TP=${tp_price:.2f}")
-                
-                if hedged_pos.primary_side == 'long':
-                    if current_price <= entry * (1 - sl_pct):
-                        should_exit = True
-                        exit_reason = "Stop-loss hit"
-                    elif current_price >= entry * (1 + tp_pct):
-                        should_exit = True
-                        exit_reason = "Take-profit hit"
-                else:
-                    if current_price >= entry * (1 + sl_pct):
-                        should_exit = True
-                        exit_reason = "Stop-loss hit"
-                    elif current_price <= entry * (1 - tp_pct):
-                        should_exit = True
-                        exit_reason = "Take-profit hit"
-                
-                if should_exit:
-                    log.info(f"[EXIT TRIGGERED] {symbol}: {exit_reason}")
-                    direction = SignalDirection.CLOSE_LONG if hedged_pos.primary_side == 'long' \
-                               else SignalDirection.CLOSE_SHORT
-                    
-                    signals.append(StrategySignal(
-                        strategy_type=self.strategy_type,
-                        symbol=symbol,
-                        direction=direction,
-                        confidence=0.9,
-                        entry_price=current_price,
-                        position_size=hedged_pos.primary_size,
-                        reason=exit_reason,
-                        metadata={
-                            'hedge_position_id': hedged_pos.id,
-                            'close_hedge': True
-                        }
-                    ))
-                    
-            except Exception as e:
-                log.error(f"Error checking exit for {symbol}: {e}")
-        
-        return signals
+                return StrategySignal(
+                    strategy_type=self.strategy_type,
+                    symbol=symbol,
+                    direction=direction,
+                    confidence=0.95,
+                    entry_price=current_price,
+                    position_size=size,
+                    reason=exit_reason,
+                    metadata={
+                        'hedge_position_id': position_id,
+                        'close_hedge': is_hedge,
+                        'original_side': side
+                    }
+                )
+            
+            return None
+            
+        except Exception as e:
+            log.error(f"Error checking exit for {symbol}: {e}")
+            return None
     
     def execute_entry(self, signal: StrategySignal) -> Optional[HedgedPosition]:
         """
