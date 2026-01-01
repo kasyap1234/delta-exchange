@@ -221,7 +221,7 @@ class MultiTimeframeStrategy(BaseStrategy):
                     close = np.array([c.close for c in candles])
                     volume = np.array([c.volume for c in candles])
                     
-                    # ADX filter (Trend strength)
+            # ADX filter (Trend strength)
                     is_trending, adx = self.analyzer.is_trending(high, low, close, min_adx=15.0)
                     if not is_trending:
                         log.info(f"MTF: {symbol} rejected - ADX {adx:.1f} < 15 (weak trend)")
@@ -233,7 +233,16 @@ class MultiTimeframeStrategy(BaseStrategy):
                         log.info(f"MTF: {symbol} rejected - weak volume confirmation ({vol_result.description})")
                         continue
                         
-                    log.info(f"MTF filters passed for {symbol}: ADX={adx:.1f}, Vol={vol_result.description}")
+                    # RSI Safety Filter (Prevent buying top / selling bottom)
+                    rsi_val = self.analyzer.calculate_rsi(close)
+                    if mtf_result['entry_signal'] == 'buy' and rsi_val > 65:
+                         log.info(f"MTF: {symbol} rejected - RSI {rsi_val:.1f} too high for BUY (Overbought)")
+                         continue
+                    if mtf_result['entry_signal'] == 'sell' and rsi_val < 35:
+                         log.info(f"MTF: {symbol} rejected - RSI {rsi_val:.1f} too low for SELL (Oversold)")
+                         continue
+                        
+                    log.info(f"MTF filters passed for {symbol}: ADX={adx:.1f}, Vol={vol_result.description}, RSI={rsi_val:.1f}")
             except Exception as e:
                 log.warning(f"Failed to apply filters for {symbol}: {e}")
                 continue

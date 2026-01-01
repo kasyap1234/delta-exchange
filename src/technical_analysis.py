@@ -628,12 +628,14 @@ class TechnicalAnalyzer:
         return float(adx[-1]) if len(adx) > 0 else 0.0
     
     def _smooth_data(self, data: np.ndarray, period: int) -> np.ndarray:
-        """Smooth data using Wilder's smoothing method."""
+        """Smooth data using Wilder's smoothing method (Corrected)."""
         result = np.zeros(len(data))
-        result[period] = np.sum(data[1:period+1])
+        # Initialize with Simple Moving Average (not Sum)
+        result[period] = np.mean(data[1:period+1])
         
         for i in range(period + 1, len(data)):
-            result[i] = result[i-1] - (result[i-1] / period) + data[i]
+            # Wilder's Smoothing: ((Prior * (N-1)) + Current) / N
+            result[i] = (result[i-1] * (period - 1) + data[i]) / period
         
         return result
     

@@ -108,19 +108,10 @@ class CorrelationCalculator:
         return self.DEFAULT_PAIRS.get(symbol)
     
     def calculate_correlation(self, symbol_a: str, symbol_b: str,
-                              resolution: str = '1h') -> CorrelationResult:
+                              resolution: str = '15m') -> CorrelationResult:
         """
-        Calculate correlation between two symbols.
-        
-        Uses Pearson correlation on hourly returns.
-        
-        Args:
-            symbol_a: First symbol
-            symbol_b: Second symbol
-            resolution: Candle resolution for calculation
-            
-        Returns:
-            CorrelationResult with correlation coefficient and metadata
+        Calculate correlation between two symbols with strict time alignment.
+        Uses Pearson correlation on 15m returns (96 samples/24h).
         """
         cache_key = f"{symbol_a}_{symbol_b}"
         
@@ -131,41 +122,36 @@ class CorrelationCalculator:
                 return cached
         
         try:
-            # Fetch candles for both symbols
-            candles_a = self.client.get_candles(
-                symbol=symbol_a,
-                resolution=resolution
-            )
-            candles_b = self.client.get_candles(
-                symbol=symbol_b,
-                resolution=resolution
-            )
+            # Fetch candles (use 15m for better sample size: 24h * 4 = 96 samples)
+            candles_a = self.client.get_candles(symbol=symbol_a, resolution=resolution)
+            candles_b = self.client.get_candles(symbol=symbol_b, resolution=resolution)
             
-            # Calculate returns
-            returns_a = self._calculate_returns(candles_a)
-            returns_b = self._calculate_returns(candles_b)
+            # --- STRICT TIME ALIGNMENT ---
+            # Dict mapping timestamp -> close_price
+            prices_a = {c.timestamp: c.close for c in candles_a}
+            prices_b = {c.timestamp: c.close for c in candles_b}
             
-            # Align lengths
-            min_len = min(len(returns_a), len(returns_b))
-            if min_len < 10:
-                log.warning(f"Insufficient data for correlation: {min_len} samples")
-                return CorrelationResult(
-                    symbol_a=symbol_a,
-                    symbol_b=symbol_b,
-                    correlation=0.0,
-                    period_hours=self.lookback_hours,
-                    sample_count=min_len,
-                    timestamp=datetime.now(),
-                    is_reliable=False
-                )
+            # Find common timestamps
+            common_times = sorted(list(set(prices_a.keys()) & set(prices_b.keys())))
             
-            returns_a = returns_a[-min_len:]
-            returns_b = returns_b[-min_len:]
+            if len(common_times) < 20: # Minimum 20 samples (5 hours of 15m data)
+                log.warning(f"Insufficient aligned data for {symbol_a}/{symbol_b}: {len(common_times)} samples")
+                return self._empty_result(symbol_a, symbol_b)
+
+            # Create aligned price arrays
+            aligned_a = np.array([prices_a[t] for t in common_times])
+            aligned_b = np.array([prices_b[t] for t in common_times])
+            
+            # Calculate returns on aligned prices
+            returns_a = np.diff(aligned_a) / aligned_a[:-1]
+            returns_b = np.diff(aligned_b) / aligned_b[:-1]
+            
+            # Recalculate length after diff
+            min_len = len(returns_a)
             
             # Calculate Pearson correlation
             correlation = np.corrcoef(returns_a, returns_b)[0, 1]
             
-            # Handle NaN
             if np.isnan(correlation):
                 correlation = 0.0
             
@@ -176,46 +162,33 @@ class CorrelationCalculator:
                 period_hours=self.lookback_hours,
                 sample_count=min_len,
                 timestamp=datetime.now(),
-                is_reliable=min_len >= 20
+                is_reliable=min_len >= 50 # Require ~12h of overlap
             )
             
             # Cache result
             self._cache[cache_key] = result
-            
-            log.debug(f"Correlation {symbol_a}/{symbol_b}: {correlation:.3f} "
-                     f"(samples: {min_len})")
-            
+            log.debug(f"Correlation {symbol_a}/{symbol_b}: {correlation:.3f} (samples: {min_len})")
             return result
             
         except Exception as e:
             log.error(f"Correlation calculation failed: {e}")
-            return CorrelationResult(
-                symbol_a=symbol_a,
-                symbol_b=symbol_b,
-                correlation=0.0,
-                period_hours=self.lookback_hours,
-                sample_count=0,
-                timestamp=datetime.now(),
-                is_reliable=False
-            )
-    
+            return self._empty_result(symbol_a, symbol_b)
+
+    def _empty_result(self, symbol_a: str, symbol_b: str) -> CorrelationResult:
+        """Helper to return empty result."""
+        return CorrelationResult(
+            symbol_a=symbol_a,
+            symbol_b=symbol_b,
+            correlation=0.0,
+            period_hours=self.lookback_hours,
+            sample_count=0,
+            timestamp=datetime.now(),
+            is_reliable=False
+        )
+
     def _calculate_returns(self, candles: List[Candle]) -> np.ndarray:
-        """
-        Calculate percentage returns from candles.
-        
-        Args:
-            candles: List of candle data
-            
-        Returns:
-            Array of percentage returns
-        """
-        if len(candles) < 2:
-            return np.array([])
-        
-        closes = np.array([c.close for c in candles])
-        returns = np.diff(closes) / closes[:-1]
-        
-        return returns
+        """Deprecated: Use internal alignment logic in calculate_correlation."""
+        pass
     
     def get_all_correlations(self, symbols: List[str]) -> Dict[str, CorrelationResult]:
         """

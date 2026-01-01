@@ -241,6 +241,11 @@ class TradingConfig:
     # Minimum indicators that must agree for a trade (2 = 50% agreement)
     min_signal_agreement: int = 2  # Balanced: 2/4 indicators needed (50% agreement)
 
+    # Leverage setting (5x is conservative, 10x is aggressive)
+    leverage: int = field(
+        default_factory=lambda: int(os.getenv("LEVERAGE", "5"))
+    )  # 5x leverage (user preference)
+
     # Order type: limit or market (market fills immediately, limit gets better price)
     use_market_orders: bool = field(
         default_factory=lambda: os.getenv("USE_MARKET_ORDERS", "false").lower() == "true"

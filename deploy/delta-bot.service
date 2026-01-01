@@ -1,0 +1,18 @@
+[Unit]
+Description=Delta Exchange Trading Bot
+After=network.target
+
+[Service]
+Type=simple
+User=YOUR_VM_USER
+WorkingDirectory=/home/YOUR_VM_USER/delta-exchange
+EnvironmentFile=/home/YOUR_VM_USER/delta-exchange/.env
+ExecStart=/usr/bin/python3 main_v2.py
+Restart=always
+RestartSec=10
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=delta-bot
+
+[Install]
+WantedBy=multi-user.target
