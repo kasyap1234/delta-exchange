@@ -52,7 +52,7 @@ resource "google_compute_instance" "trading_bot" {
   boot_disk {
     initialize_params {
       image = "ubuntu-os-cloud/ubuntu-2204-lts"
-      size  = 30 # 30GB is the free tier limit
+      size  = 10 # 30GB is the free tier limit
       type  = "pd-standard"
     }
   }

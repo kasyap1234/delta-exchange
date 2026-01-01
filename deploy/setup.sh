@@ -17,7 +17,11 @@ echo "📂 App directory: $APP_DIR"
 # 1. Update system and install Python
 echo "📦 Updating system dependencies..."
 sudo apt-get update
-sudo apt-get install -y python3-pip python3-dev build-essential libta-lib0
+sudo apt-get install -y python3-pip python3-dev build-essential
+
+# Optional: Try to install libta-lib if available, but don't fail if not
+# We have built-in Python fallbacks for all indicators in technical_analysis.py
+sudo apt-get install -y libta-lib0 || echo "⚠️ libta-lib0 not found, using Python math fallbacks."
 
 # 2. Install Python requirements
 echo "🐍 Installing Python requirements..."
