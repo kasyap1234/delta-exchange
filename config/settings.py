@@ -1,11 +1,18 @@
 """
 Configuration settings for Delta Exchange Trading Bot.
 Loads settings from environment variables with sensible defaults.
+
+Enhanced with:
+- Signal filtering configuration
+- Strict mode for higher quality signals
+- Market regime detection settings
+- Enhanced risk management options
 """
 
 import os
 from dataclasses import dataclass, field
-from typing import List, Dict
+from typing import Dict, List, Tuple
+
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -17,6 +24,7 @@ try:
 except ImportError:
     # Fallback if logger not available during import
     import logging
+
     log = logging.getLogger(__name__)
 
 
@@ -152,7 +160,8 @@ class EnhancedRiskConfig:
 
     # Profitability monitoring
     enable_auto_disable: bool = field(
-        default_factory=lambda: os.getenv("ENABLE_AUTO_DISABLE", "true").lower() == "true"
+        default_factory=lambda: os.getenv("ENABLE_AUTO_DISABLE", "true").lower()
+        == "true"
     )  # Auto-disable if losing
 
     # Volatility-adjusted sizing
@@ -185,7 +194,127 @@ class EnhancedRiskConfig:
 
     # Profit ladder (scale out at profit targets)
     profit_ladder_enabled: bool = field(
-        default_factory=lambda: os.getenv("PROFIT_LADDER_ENABLED", "false").lower() == "true"
+        default_factory=lambda: os.getenv("PROFIT_LADDER_ENABLED", "false").lower()
+        == "true"
+    )
+
+    # Profit lock levels: list of (r_multiple, lock_percentage) tuples
+    # At each R-multiple, lock that percentage of profit with stop
+    profit_lock_levels: List[Tuple[float, float]] = field(
+        default_factory=lambda: [
+            (1.5, 0.25),  # At 1.5R, lock 25% of profit
+            (2.0, 0.50),  # At 2R, lock 50% of profit
+            (3.0, 0.75),  # At 3R, lock 75% of profit
+        ]
+    )
+
+    # Break-even stop configuration
+    break_even_trigger_r: float = field(
+        default_factory=lambda: float(os.getenv("BREAK_EVEN_TRIGGER_R", "1.0"))
+    )  # Move stop to break-even after 1R profit
+    break_even_buffer_pct: float = field(
+        default_factory=lambda: float(os.getenv("BREAK_EVEN_BUFFER_PCT", "0.001"))
+    )  # 0.1% buffer above entry for break-even stop
+
+
+@dataclass
+class SignalFilterConfig:
+    """Signal filtering configuration for trade quality."""
+
+    # Enable/disable signal filtering
+    enabled: bool = field(
+        default_factory=lambda: os.getenv("SIGNAL_FILTER_ENABLED", "true").lower()
+        == "true"
+    )
+
+    # Use strict mode (stricter RSI thresholds, higher agreement requirements)
+    strict_mode: bool = field(
+        default_factory=lambda: os.getenv("STRICT_MODE", "false").lower() == "true"
+    )
+
+    # Minimum quality score for entry (0-100)
+    min_quality_score: float = field(
+        default_factory=lambda: float(os.getenv("MIN_QUALITY_SCORE", "55.0"))
+    )
+
+    # Minimum signal confidence (0-1)
+    min_confidence: float = field(
+        default_factory=lambda: float(os.getenv("MIN_SIGNAL_CONFIDENCE", "0.5"))
+    )
+
+    # Maximum daily trades per symbol
+    max_daily_trades_per_symbol: int = field(
+        default_factory=lambda: int(os.getenv("MAX_DAILY_TRADES_PER_SYMBOL", "5"))
+    )
+
+    # Consecutive loss limit before cooldown
+    consecutive_loss_limit: int = field(
+        default_factory=lambda: int(os.getenv("CONSECUTIVE_LOSS_LIMIT", "3"))
+    )
+
+    # Cooldown after loss streak (minutes)
+    loss_cooldown_minutes: int = field(
+        default_factory=lambda: int(os.getenv("LOSS_COOLDOWN_MINUTES", "30"))
+    )
+
+    # Minimum indicator agreement (out of total indicators)
+    min_indicator_agreement: int = field(
+        default_factory=lambda: int(os.getenv("MIN_INDICATOR_AGREEMENT", "3"))
+    )
+
+    # Maximum volatility percentile to trade (0-100)
+    max_volatility_percentile: float = field(
+        default_factory=lambda: float(os.getenv("MAX_VOLATILITY_PERCENTILE", "85.0"))
+    )
+
+    # Minimum ADX for trend trades
+    min_adx_for_trend: float = field(
+        default_factory=lambda: float(os.getenv("MIN_ADX_FOR_TREND", "20.0"))
+    )
+
+
+@dataclass
+class MarketRegimeConfig:
+    """Market regime detection configuration."""
+
+    # Enable market regime filtering
+    enabled: bool = field(
+        default_factory=lambda: os.getenv("REGIME_FILTER_ENABLED", "true").lower()
+        == "true"
+    )
+
+    # ADX thresholds for trend strength
+    adx_weak_threshold: float = 20.0
+    adx_moderate_threshold: float = 25.0
+    adx_strong_threshold: float = 40.0
+    adx_exhausted_threshold: float = 70.0
+
+    # Choppiness Index thresholds
+    choppy_threshold: float = 61.8
+    trending_threshold: float = 38.2
+
+    # Volatility percentile thresholds
+    low_volatility_percentile: float = 20.0
+    high_volatility_percentile: float = 80.0
+
+    # Avoid trading in these regimes
+    avoid_regimes: List[str] = field(
+        default_factory=lambda: ["choppy", "high_volatility"]
+    )
+
+    # Preferred regimes for trend following
+    trend_regimes: List[str] = field(
+        default_factory=lambda: [
+            "uptrend",
+            "downtrend",
+            "strong_uptrend",
+            "strong_downtrend",
+        ]
+    )
+
+    # Preferred regimes for mean reversion
+    mean_reversion_regimes: List[str] = field(
+        default_factory=lambda: ["ranging", "low_volatility"]
     )
 
 
@@ -205,11 +334,11 @@ class TradingConfig:
         default_factory=lambda: float(os.getenv("MAX_CAPITAL_PER_TRADE", "0.15"))
     )  # 15% (was 25%)
     stop_loss_pct: float = field(
-        default_factory=lambda: float(os.getenv("STOP_LOSS_PCT", "0.04"))
-    )  # 4% (was 3%) - Wider to avoid premature exits
+        default_factory=lambda: float(os.getenv("STOP_LOSS_PCT", "0.03"))
+    )  # 3% - Tighter for better risk management
     take_profit_pct: float = field(
-        default_factory=lambda: float(os.getenv("TAKE_PROFIT_PCT", "0.09"))
-    )  # 9% (was 6%) - 2.25:1 R:R maintained
+        default_factory=lambda: float(os.getenv("TAKE_PROFIT_PCT", "0.06"))
+    )  # 6% - 2:1 R:R ratio
     max_open_positions: int = field(
         default_factory=lambda: int(os.getenv("MAX_OPEN_POSITIONS", "10"))
     )  # Allow room for Arb(3) + Hedge(3) + MTF(3)
@@ -220,10 +349,14 @@ class TradingConfig:
     )
     candle_count: int = 300  # Number of candles to fetch for analysis
 
-    # Indicator settings (RSI) - Balanced thresholds for better trade frequency
+    # Indicator settings (RSI) - Stricter thresholds for higher quality signals
     rsi_period: int = 14
-    rsi_oversold: int = 40  # More balanced for trade frequency
-    rsi_overbought: int = 60  # More balanced for trade frequency
+    rsi_oversold: int = 30  # Standard oversold threshold
+    rsi_overbought: int = 70  # Standard overbought threshold
+
+    # Strict RSI thresholds (used in strict_mode)
+    rsi_oversold_strict: int = 25
+    rsi_overbought_strict: int = 75
 
     # Indicator settings (MACD)
     macd_fast: int = 12
@@ -238,8 +371,13 @@ class TradingConfig:
     ema_short: int = 9
     ema_long: int = 21
 
-    # Minimum indicators that must agree for a trade (2 = 50% agreement)
-    min_signal_agreement: int = 2  # Balanced: 2/4 indicators needed (50% agreement)
+    # Minimum indicators that must agree for a trade (3 = 75% agreement for 4 indicators)
+    min_signal_agreement: int = 3  # Stricter: 3/4 indicators needed (75% agreement)
+
+    # Minimum confidence for trade entry (0.0 - 1.0)
+    min_entry_confidence: float = field(
+        default_factory=lambda: float(os.getenv("MIN_ENTRY_CONFIDENCE", "0.5"))
+    )
 
     # Leverage setting (5x is conservative, 10x is aggressive)
     leverage: int = field(
@@ -248,8 +386,29 @@ class TradingConfig:
 
     # Order type: limit or market (market fills immediately, limit gets better price)
     use_market_orders: bool = field(
-        default_factory=lambda: os.getenv("USE_MARKET_ORDERS", "false").lower() == "true"
+        default_factory=lambda: os.getenv("USE_MARKET_ORDERS", "false").lower()
+        == "true"
     )  # Use market orders for guaranteed fills in volatile markets
+
+    # Limit order buffer (how far from market price for limit orders)
+    limit_order_buffer_pct: float = field(
+        default_factory=lambda: float(os.getenv("LIMIT_ORDER_BUFFER_PCT", "0.002"))
+    )  # 0.2% from market price
+
+    # Maximum hold time for positions (hours, 0 = unlimited)
+    max_hold_time_hours: int = field(
+        default_factory=lambda: int(os.getenv("MAX_HOLD_TIME_HOURS", "168"))
+    )  # 7 days default
+
+    # Stagnant position threshold (hours with no significant move)
+    stagnant_threshold_hours: int = field(
+        default_factory=lambda: int(os.getenv("STAGNANT_THRESHOLD_HOURS", "12"))
+    )  # 12 hours
+
+    # Minimum notional value for orders
+    min_order_notional: float = field(
+        default_factory=lambda: float(os.getenv("MIN_ORDER_NOTIONAL", "10.0"))
+    )  # $10 minimum
 
 
 @dataclass
@@ -278,6 +437,10 @@ class Settings:
     mtf: MultiTimeframeConfig = field(default_factory=MultiTimeframeConfig)
     enhanced_risk: EnhancedRiskConfig = field(default_factory=EnhancedRiskConfig)
 
+    # Signal filtering and market regime detection
+    signal_filter: SignalFilterConfig = field(default_factory=SignalFilterConfig)
+    market_regime: MarketRegimeConfig = field(default_factory=MarketRegimeConfig)
+
     def __post_init__(self):
         """Validate settings after initialization."""
         self._validate_symbols()
@@ -286,15 +449,15 @@ class Settings:
     def _validate_symbols(self):
         """Validate that trading pairs use USD format, not USDT."""
         for pair in self.trading.trading_pairs:
-            if 'USDT' in pair and not pair.startswith('USDT'):
+            if "USDT" in pair and not pair.startswith("USDT"):
                 # Allow USDT as base asset (like USDT/USD), but reject BTCUSDT format
-                if pair.endswith('USDT') or 'USDT' in pair.upper():
+                if pair.endswith("USDT") or "USDT" in pair.upper():
                     raise ValueError(
                         f"Invalid symbol format: {pair}. "
                         f"Delta Exchange perpetual contracts use USD format (e.g., BTCUSD, ETHUSD). "
                         f"USDT symbols (BTCUSDT, ETHUSDT) should not be used."
                     )
-        
+
         # Validate hedge pairs match trading pairs
         for primary, hedge in self.hedging.hedge_pairs.items():
             if primary not in self.trading.trading_pairs:
@@ -309,9 +472,39 @@ class Settings:
     def _validate_strategy_allocation(self):
         """Validate that strategy allocations sum to 1.0."""
         if not self.strategy_allocation.validate():
-            raise ValueError(
-                "Strategy allocation validation failed"
+            raise ValueError("Strategy allocation validation failed")
+
+    def _validate_risk_settings(self):
+        """Validate risk management settings are sensible."""
+        # Ensure stop loss is not too tight
+        if self.trading.stop_loss_pct < 0.01:
+            log.warning(
+                f"Stop loss {self.trading.stop_loss_pct:.1%} is very tight - may cause premature exits"
             )
+
+        # Ensure R:R ratio is at least 1.5:1
+        rr_ratio = self.trading.take_profit_pct / self.trading.stop_loss_pct
+        if rr_ratio < 1.5:
+            log.warning(
+                f"Risk:Reward ratio {rr_ratio:.2f}:1 is below recommended 1.5:1"
+            )
+
+        # Validate daily loss limit is reasonable
+        if self.enhanced_risk.daily_loss_limit_pct > 0.10:
+            log.warning(
+                f"Daily loss limit {self.enhanced_risk.daily_loss_limit_pct:.1%} is high - consider lowering"
+            )
+
+    def get_strict_rsi_thresholds(self) -> Tuple[int, int]:
+        """Get strict RSI thresholds for high-quality signal mode."""
+        return (
+            getattr(self.trading, "rsi_oversold_strict", 25),
+            getattr(self.trading, "rsi_overbought_strict", 75),
+        )
+
+    def is_strict_mode(self) -> bool:
+        """Check if strict signal filtering mode is enabled."""
+        return self.signal_filter.strict_mode
 
 
 # Global settings instance
