@@ -45,6 +45,15 @@ class CorrelatedHedgingStrategy(BaseStrategy):
     # Minimum correlation required to hedge
     MIN_CORRELATION = 0.65
     
+    # Enhanced entry quality filters
+    MIN_CONFIDENCE = 0.60  # Require 60% confidence (was implicit 50%)
+    MIN_INDICATOR_AGREEMENT = 3  # Require at least 3/4 indicators to agree
+    MIN_ADX_FOR_ENTRY = 20  # Minimum ADX for trend strength
+    
+    # Stricter RSI thresholds - avoid buying high / selling low
+    RSI_OVERBOUGHT_THRESHOLD = 60  # Don't LONG above this (was 65)
+    RSI_OVERSOLD_THRESHOLD = 40    # Don't SHORT below this (was 35)
+    
     def __init__(self, client: DeltaExchangeClient,
                  capital_allocation: float = 0.4,
                  hedge_ratio: float = 0.3,
@@ -257,17 +266,31 @@ class CorrelatedHedgingStrategy(BaseStrategy):
             log.warning(f"Could not fetch higher TF for {symbol}: {e}")
             higher_tf_trend = "unknown"
         
+        # ===== NEW: Minimum Confidence Filter =====
+        if ta_result.confidence < self.MIN_CONFIDENCE:
+            log.info(f"  → REJECTED: Confidence {ta_result.confidence:.2f} < {self.MIN_CONFIDENCE} required")
+            return None
+        
+        # ===== NEW: Minimum Indicator Agreement Filter =====
+        bullish_count = sum(1 for ind in ta_result.indicators if ind.signal.value == 1)
+        bearish_count = sum(1 for ind in ta_result.indicators if ind.signal.value == -1)
+        max_agreement = max(bullish_count, bearish_count)
+        
+        if max_agreement < self.MIN_INDICATOR_AGREEMENT:
+            log.info(f"  → REJECTED: Only {max_agreement}/4 indicators agree (need {self.MIN_INDICATOR_AGREEMENT})")
+            return None
+        
         # Determine direction based on TA
         if ta_result.combined_signal in [Signal.BUY, Signal.STRONG_BUY]:
             direction = SignalDirection.LONG
             hedge_direction = SignalDirection.SHORT
             signal_trend = "bullish"
-            log.info(f"  → Entry Signal: LONG (BUY)")
+            log.info(f"  → Entry Signal: LONG (BUY) - {bullish_count}/4 bullish indicators")
         elif ta_result.combined_signal in [Signal.SELL, Signal.STRONG_SELL]:
             direction = SignalDirection.SHORT
             hedge_direction = SignalDirection.LONG
             signal_trend = "bearish"
-            log.info(f"  → Entry Signal: SHORT (SELL)")
+            log.info(f"  → Entry Signal: SHORT (SELL) - {bearish_count}/4 bearish indicators")
         else:
             log.info(f"  → NO SIGNAL: Combined signal is {ta_result.combined_signal.value}")
             return None
@@ -276,8 +299,8 @@ class CorrelatedHedgingStrategy(BaseStrategy):
         if higher_tf_trend not in ["unknown", "neutral"] and higher_tf_trend != signal_trend:
             log.info(f"  → REJECTED: Signal ({signal_trend}) conflicts with 4h trend ({higher_tf_trend})")
             return None
-            
-        # ===== CRITICAL: RSI Safety Filter (Don't Sell Low / Buy High) =====
+        
+        # ===== RSI Safety Filter (Stricter thresholds) =====
         rsi_value = None
         for ind in ta_result.indicators:
             if ind.name == "RSI":
@@ -285,17 +308,35 @@ class CorrelatedHedgingStrategy(BaseStrategy):
                 break
         
         if rsi_value is not None:
-            # Filter: Don't SHORT if RSI is already Oversold (< 35)
-            if direction == SignalDirection.SHORT and rsi_value < 35:
-                log.info(f"  → REJECTED: RSI {rsi_value:.1f} is too low for SHORT (Oversold < 35)")
+            # Don't SHORT if RSI is already Oversold (< 40)
+            if direction == SignalDirection.SHORT and rsi_value < self.RSI_OVERSOLD_THRESHOLD:
+                log.info(f"  → REJECTED: RSI {rsi_value:.1f} too low for SHORT (< {self.RSI_OVERSOLD_THRESHOLD})")
                 return None
             
-            # Filter: Don't LONG if RSI is already Overbought (> 65)
-            if direction == SignalDirection.LONG and rsi_value > 65:
-                log.info(f"  → REJECTED: RSI {rsi_value:.1f} is too high for LONG (Overbought > 65)")
+            # Don't LONG if RSI is already Overbought (> 60)
+            if direction == SignalDirection.LONG and rsi_value > self.RSI_OVERBOUGHT_THRESHOLD:
+                log.info(f"  → REJECTED: RSI {rsi_value:.1f} too high for LONG (> {self.RSI_OVERBOUGHT_THRESHOLD})")
                 return None
         
-        log.info(f"  → APPROVED: Signal aligned with 4h trend & RSI ok")
+        # ===== ADX Trend Strength Check =====
+        try:
+            candles = self.client.get_candles(symbol=symbol)
+            if candles and len(candles) >= 28:  # Need 2*period for ADX
+                high = np.array([c.high for c in candles])
+                low = np.array([c.low for c in candles])
+                close = np.array([c.close for c in candles])
+                
+                adx_value = self.analyzer.calculate_adx(high, low, close)
+                log.info(f"  ADX Value: {adx_value:.1f}")
+                
+                # Only require ADX for trend-following entries (skip for mean-reversion setups)
+                if adx_value < self.MIN_ADX_FOR_ENTRY and higher_tf_trend != "neutral":
+                    log.info(f"  → REJECTED: ADX {adx_value:.1f} < {self.MIN_ADX_FOR_ENTRY} (weak trend)")
+                    return None
+        except Exception as e:
+            log.warning(f"Could not calculate ADX for {symbol}: {e}")
+        
+        log.info(f"  → APPROVED: All quality filters passed")
         
         # Get current price
         try:

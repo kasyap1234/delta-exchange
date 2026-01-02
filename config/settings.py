@@ -150,8 +150,8 @@ class EnhancedRiskConfig:
         default_factory=lambda: float(os.getenv("ATR_STOP_MULT", "2.0"))
     )  # 2x ATR (balanced for better risk-reward)
     atr_trailing_multiplier: float = field(
-        default_factory=lambda: float(os.getenv("ATR_TRAIL_MULT", "1.5"))
-    )  # 1.5x ATR (tighter trailing for protection)
+        default_factory=lambda: float(os.getenv("ATR_TRAIL_MULT", "2.0"))
+    )  # 2.0x ATR (wider trailing for better profit capture)
 
     # Win rate threshold for automatic strategy disabling (e.g., 40% min win rate)
     min_win_rate_pct: float = field(
@@ -234,7 +234,7 @@ class SignalFilterConfig:
 
     # Minimum quality score for entry (0-100)
     min_quality_score: float = field(
-        default_factory=lambda: float(os.getenv("MIN_QUALITY_SCORE", "55.0"))
+        default_factory=lambda: float(os.getenv("MIN_QUALITY_SCORE", "60.0"))
     )
 
     # Minimum signal confidence (0-1)
@@ -376,7 +376,7 @@ class TradingConfig:
 
     # Minimum confidence for trade entry (0.0 - 1.0)
     min_entry_confidence: float = field(
-        default_factory=lambda: float(os.getenv("MIN_ENTRY_CONFIDENCE", "0.5"))
+        default_factory=lambda: float(os.getenv("MIN_ENTRY_CONFIDENCE", "0.55"))
     )
 
     # Leverage setting (5x is conservative, 10x is aggressive)

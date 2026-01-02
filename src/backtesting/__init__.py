@@ -23,10 +23,18 @@ def get_analyzer():
     return PerformanceAnalyzer, PerformanceMetrics
 
 
+def get_strategy_runner():
+    from src.backtesting.strategy_backtest import StrategyBacktestRunner, StrategyBacktestResult
+    
+    return StrategyBacktestRunner, StrategyBacktestResult
+
+
 __all__ = [
     "HistoricalDataFetcher",
     "BacktestEngine",
     "BacktestResult",
     "PerformanceAnalyzer",
     "PerformanceMetrics",
+    "StrategyBacktestRunner",
+    "StrategyBacktestResult",
 ]

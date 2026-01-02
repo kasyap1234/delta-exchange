@@ -122,7 +122,7 @@ class SignalFilter:
     """
 
     # Filter thresholds
-    MIN_QUALITY_SCORE = 55.0  # Minimum quality score (0-100)
+    MIN_QUALITY_SCORE = 60.0  # Minimum quality score (0-100) - increased for better signals
     MIN_CONFIDENCE = 0.5  # Minimum signal confidence
     MIN_ADX_FOR_TREND = 20.0  # Minimum ADX for trend trades
     MAX_ADX_EXHAUSTED = 70.0  # ADX above this suggests exhaustion
