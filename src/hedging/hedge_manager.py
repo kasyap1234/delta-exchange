@@ -13,6 +13,7 @@ from enum import Enum
 
 from src.delta_client import DeltaExchangeClient, Position, Order, OrderSide, OrderType
 from src.hedging.correlation import CorrelationCalculator, CorrelationResult
+from config.settings import settings
 from utils.logger import log
 
 if TYPE_CHECKING:
@@ -575,6 +576,63 @@ class HedgeManager:
         """
         return sum(p.net_exposure for p in self.get_active_positions())
     
+    def evaluate_and_hedge(self, positions: List[Position]) -> List[HedgedPosition]:
+        """
+        Evaluate current positions for hedging opportunities.
+
+        Checks all open positions. If any position has an unrealized loss
+        greater than the configured threshold (e.g., -2%) and is not
+        already hedged, it creates a hedge position.
+
+        Args:
+            positions: List of current open positions from exchange
+
+        Returns:
+            List of newly created HedgedPosition objects
+        """
+        new_hedges = []
+
+        for pos in positions:
+            # Skip if position size is 0 (closed)
+            if abs(pos.size) == 0:
+                continue
+
+            # Skip if already hedged
+            if pos.product_symbol in self._primary_to_position_id:
+                # Verify the hedge is still active
+                hedge_id = self._primary_to_position_id[pos.product_symbol]
+                if self._positions.get(hedge_id, None) and self._positions[hedge_id].status == HedgeStatus.ACTIVE:
+                    continue
+
+            # Calculate unrealized P&L percentage
+            # Entry value = price * size
+            entry_value = pos.entry_price * abs(pos.size)
+            if entry_value == 0:
+                continue
+
+            pnl_pct = (pos.unrealized_pnl / entry_value) * 100
+
+            # Check against threshold (e.g. -2.0%)
+            # We hardcode -2.0% here as per project rules ("NEVER hedge small losses")
+            if pnl_pct <= -2.0:
+                log.info(f"Position {pos.product_symbol} loss {pnl_pct:.2f}% exceeds -2% threshold - attempting to hedge")
+
+                hedged_pos = self.create_hedged_position(
+                    primary_symbol=pos.product_symbol,
+                    primary_size=abs(pos.size),
+                    primary_side="long" if pos.size > 0 else "short",
+                    primary_price=pos.entry_price
+                )
+
+                if hedged_pos:
+                    new_hedges.append(hedged_pos)
+
+        return new_hedges
+
+    def get_hedge_summary(self) -> Dict:
+         """Alias for get_status to match interface used by Strategy."""
+         return self.get_status()
+
     def get_status(self) -> Dict:
         """Get current status of hedge manager."""
         active = self.get_active_positions()

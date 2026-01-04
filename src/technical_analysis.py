@@ -92,7 +92,7 @@ class TechnicalAnalyzer:
 
     # Minimum indicators that must agree for different signal strengths
     MIN_INDICATORS_STRONG_SIGNAL = 4  # All must agree for strong signal
-    MIN_INDICATORS_NORMAL_SIGNAL = 3  # 3 out of 4 for normal signal
+    MIN_INDICATORS_NORMAL_SIGNAL = 2  # 2 out of 4 for normal signal (relaxed for more trades)
 
     def __init__(self, strict_mode: bool = False):
         """
@@ -249,25 +249,21 @@ class TechnicalAnalyzer:
         oversold_threshold = self._rsi_oversold
         overbought_threshold = self._rsi_overbought
 
-        # Signal generation with momentum confirmation
+        # Signal generation (relaxed - momentum used for strength, not gating)
         if current_rsi < oversold_threshold:
-            # Oversold - bullish if RSI is starting to rise (momentum > 0)
+            # Oversold - bullish signal (reversal expected)
+            signal = IndicatorSignal.BULLISH
             if rsi_momentum > 0:
-                signal = IndicatorSignal.BULLISH
-                description = f"Oversold at {current_rsi:.1f} with bullish momentum"
+                description = f"Oversold at {current_rsi:.1f} with bullish momentum (strong)"
             else:
-                # Still falling - wait for reversal
-                signal = IndicatorSignal.NEUTRAL
-                description = f"Oversold at {current_rsi:.1f} but still falling"
+                description = f"Oversold at {current_rsi:.1f} (awaiting reversal)"
         elif current_rsi > overbought_threshold:
-            # Overbought - bearish if RSI is starting to fall (momentum < 0)
+            # Overbought - bearish signal (reversal expected)
+            signal = IndicatorSignal.BEARISH
             if rsi_momentum < 0:
-                signal = IndicatorSignal.BEARISH
-                description = f"Overbought at {current_rsi:.1f} with bearish momentum"
+                description = f"Overbought at {current_rsi:.1f} with bearish momentum (strong)"
             else:
-                # Still rising - wait for reversal
-                signal = IndicatorSignal.NEUTRAL
-                description = f"Overbought at {current_rsi:.1f} but still rising"
+                description = f"Overbought at {current_rsi:.1f} (awaiting reversal)"
         else:
             signal = IndicatorSignal.NEUTRAL
             description = f"Neutral at {current_rsi:.1f}"

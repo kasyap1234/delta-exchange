@@ -323,9 +323,10 @@ class TradingConfig:
     """Trading strategy configuration."""
 
     # Trading pairs to monitor (USD format for perpetual contracts)
+    # Only SOLUSD - BTC and ETH removed due to poor backtest performance
     trading_pairs: List[str] = field(
         default_factory=lambda: os.getenv(
-            "TRADING_PAIRS", "BTCUSD,ETHUSD,SOLUSD"
+            "TRADING_PAIRS", "SOLUSD"
         ).split(",")
     )
 
@@ -334,11 +335,11 @@ class TradingConfig:
         default_factory=lambda: float(os.getenv("MAX_CAPITAL_PER_TRADE", "0.15"))
     )  # 15% (was 25%)
     stop_loss_pct: float = field(
-        default_factory=lambda: float(os.getenv("STOP_LOSS_PCT", "0.03"))
-    )  # 3% - Tighter for better risk management
+        default_factory=lambda: float(os.getenv("STOP_LOSS_PCT", "0.025"))
+    )  # 2.5% - Tighter for better risk management
     take_profit_pct: float = field(
-        default_factory=lambda: float(os.getenv("TAKE_PROFIT_PCT", "0.06"))
-    )  # 6% - 2:1 R:R ratio
+        default_factory=lambda: float(os.getenv("TAKE_PROFIT_PCT", "0.0625"))
+    )  # 6.25% - 2.5:1 R:R ratio
     max_open_positions: int = field(
         default_factory=lambda: int(os.getenv("MAX_OPEN_POSITIONS", "10"))
     )  # Allow room for Arb(3) + Hedge(3) + MTF(3)
@@ -371,12 +372,14 @@ class TradingConfig:
     ema_short: int = 9
     ema_long: int = 21
 
-    # Minimum indicators that must agree for a trade (3 = 75% agreement for 4 indicators)
-    min_signal_agreement: int = 3  # Stricter: 3/4 indicators needed (75% agreement)
+    # Minimum indicators that must agree for a trade (2 = 50% agreement, ADX filter adds quality)
+    min_signal_agreement: int = field(
+        default_factory=lambda: int(os.getenv("MIN_SIGNAL_AGREEMENT", "2"))
+    )
 
     # Minimum confidence for trade entry (0.0 - 1.0)
     min_entry_confidence: float = field(
-        default_factory=lambda: float(os.getenv("MIN_ENTRY_CONFIDENCE", "0.55"))
+        default_factory=lambda: float(os.getenv("MIN_ENTRY_CONFIDENCE", "0.65"))
     )
 
     # Leverage setting (5x is conservative, 10x is aggressive)

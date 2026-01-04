@@ -196,10 +196,10 @@ class RiskManager:
         # 2. Calculate explicit SL/TP prices
         if side.lower() == "buy" or side.lower() == "long":
             stop_loss_price = entry_price - risk_dist
-            take_profit_price = entry_price + (risk_dist * 2)  # 2:1 R:R default
+            take_profit_price = entry_price + (entry_price * self.config.take_profit_pct)
         else:
             stop_loss_price = entry_price + risk_dist
-            take_profit_price = entry_price - (risk_dist * 2)
+            take_profit_price = entry_price - (entry_price * self.config.take_profit_pct)
 
         # 3. Calculate Base Position Size based on RISK
         nominal_size = self.calculate_risk_based_size(
@@ -237,7 +237,7 @@ class RiskManager:
                 # Conservative defaults for low sample size
                 win_rate = 0.45
                 win_loss_ratio = 2.0
-                log.info("Kelly using defaults (insufficient trade data)")
+                log.debug("Kelly using defaults (insufficient trade data)")
 
             kelly_fraction = self.get_kelly_fraction(win_rate, win_loss_ratio)
 
@@ -279,7 +279,7 @@ class RiskManager:
             risk_reward_ratio=risk_reward_ratio,
         )
 
-        log.info(
+        log.debug(
             f"Position sizing for {symbol}: Size={final_size:.4f}, "
             f"SL={stop_loss_price:.2f}, TP={take_profit_price:.2f}, "
             f"R:R={risk_reward_ratio:.2f}"
