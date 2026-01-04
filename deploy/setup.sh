@@ -1,10 +1,10 @@
 #!/bin/bash
 # Fully Automated Deployment Script for Delta Exchange Bot
-# This script is intended to be run on an Ubuntu/Debian VM.
+# Uses 'uv' for fast, reliable Python management.
 
 set -e # Exit on error
 
-echo "🚀 Starting Full Automation Setup..."
+echo "🚀 Starting Full Automation Setup (UV Edition)..."
 
 # 0. Get current user and dir
 USER=$(whoami)
@@ -14,36 +14,45 @@ SERVICE_NAME="delta-bot"
 echo "👤 Running as user: $USER"
 echo "📂 App directory: $APP_DIR"
 
-# 1. Update system and install Python
+# 1. Update system dependencies
 echo "📦 Updating system dependencies..."
 sudo apt-get update
-sudo apt-get install -y python3-pip python3-dev build-essential
+sudo apt-get install -y curl build-essential
 
-# Optional: Try to install libta-lib if available, but don't fail if not
-# We have built-in Python fallbacks for all indicators in technical_analysis.py
-sudo apt-get install -y libta-lib0 || echo "⚠️ libta-lib0 not found, using Python math fallbacks."
+# 2. Install uv (The Python Package Manager)
+echo "⚡ Installing uv..."
+curl -LsSf https://astral.sh/uv/install.sh | sh
+source $HOME/.cargo/env
 
-# 2. Install Python requirements
-echo "🐍 Installing Python requirements..."
-pip3 install --upgrade pip
-pip3 install -r requirements.txt
+# 3. Setup Python Environment
+echo "🐍 Setting up Python with uv..."
+# Install Python 3.12 (Stable, modern)
+uv python install 3.12
+# Create virtual environment and install deps
+uv venv
+source .venv/bin/activate
+uv pip install -r requirements.txt
 
-# 3. Create data/log directories
+# 4. Create data/log directories
 mkdir -p logs data
 
-# 4. Configure Systemd Service
+# 5. Configure Systemd Service
 echo "⚙️ Configuring systemd service..."
 
 # Update the service file template with real paths
+# Point ExecStart to the venv python executable
+VENV_PYTHON="$APP_DIR/.venv/bin/python3"
+
 sed -i "s|YOUR_VM_USER|$USER|g" deploy/delta-bot.service
-sed -i "s|/home/$USER/delta-exchange|$APP_DIR|g" deploy/delta-bot.service
+sed -i "s|YOUR_WORKING_DIR|$APP_DIR|g" deploy/delta-bot.service
+sed -i "s|YOUR_PYTHON_EXEC|$VENV_PYTHON|g" deploy/delta-bot.service
 
 # Copy and enable service
 sudo cp deploy/delta-bot.service /etc/systemd/system/$SERVICE_NAME.service
 sudo systemctl daemon-reload
 sudo systemctl enable $SERVICE_NAME
 
-# 5. Start the bot
+# 6. Start the bot
 echo "🏁 Starting the trading bot..."
 sudo systemctl restart $SERVICE_NAME
 

@@ -96,8 +96,13 @@ class MultiTimeframeStrategy(BaseStrategy):
     
     def __init__(self, client: DeltaExchangeClient, capital_allocation: float = 0.20, dry_run: bool = False):
         super().__init__(client, capital_allocation, dry_run)
+        
+        # Initialize timeframe settings
+        self.higher_tf = getattr(settings.mtf, 'higher_tf', self.HIGHER_TF)
+        self.entry_tf = getattr(settings.mtf, 'entry_tf', self.ENTRY_TF)
+        
         self.analyzer = TechnicalAnalyzer()
-        self.mtf_analyzer = MultiTimeframeAnalyzer(client)
+        self.mtf_analyzer = MultiTimeframeAnalyzer(client, higher_tf=self.higher_tf, entry_tf=self.entry_tf)
         self.signal_validator = UnifiedSignalValidator()
         self.trading_pairs = getattr(settings.trading, 'trading_pairs',
                                      ['BTCUSD', 'ETHUSD', 'SOLUSD'])

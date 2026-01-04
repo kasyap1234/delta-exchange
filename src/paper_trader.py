@@ -231,10 +231,6 @@ class PaperTradingSimulator:
     MAKER_FEE = 0.0004  # 0.04%
     TAKER_FEE = 0.0006  # 0.06%
     
-    def __init__(self, initial_balance: float = 10000.0, 
-                 leverage: int = 1,
-                 use_maker_fee: bool = False,
-                 persistence_file: str = "data/paper_trade_state.json"):
     def __init__(self, 
                  initial_balance: float = 10000.0,
                  fee_rate: float = 0.0006,  # 0.06% taker fee

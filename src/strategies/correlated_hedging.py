@@ -76,6 +76,7 @@ class CorrelatedHedgingStrategy(BaseStrategy):
             default_hedge_ratio=hedge_ratio,
             dry_run=dry_run
         )
+        self.signal_validator = UnifiedSignalValidator()
         
         # Trading pairs configuration
         self.trading_pairs = getattr(settings.trading, 'trading_pairs', 

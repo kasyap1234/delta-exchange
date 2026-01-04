@@ -18,13 +18,13 @@ provider "google" {
 
 # Network
 resource "google_compute_network" "vpc_network" {
-  name                    = "delta-bot-network"
+  name                    = "delta-bot-vpc-v2"
   auto_create_subnetworks = true
 }
 
 # Firewall rule to allow SSH
 resource "google_compute_firewall" "allow_ssh" {
-  name    = "allow-ssh"
+  name    = "delta-bot-allow-ssh"
   network = google_compute_network.vpc_network.name
 
   allow {
@@ -51,7 +51,7 @@ resource "google_compute_instance" "trading_bot" {
 
   boot_disk {
     initialize_params {
-      image = "ubuntu-os-cloud/ubuntu-2204-lts"
+      image = "ubuntu-os-cloud/ubuntu-2404-lts-amd64"
       size  = 10 # 30GB is the free tier limit
       type  = "pd-standard"
     }
@@ -83,11 +83,9 @@ resource "google_compute_instance" "trading_bot" {
     ]
   }
 
-  # 2. Push local code to VM
-  # Note: This will sync the current directory to the VM
-  provisioner "file" {
-    source      = "${path.module}/../"
-    destination = "/home/${var.ssh_user}/delta-exchange"
+  # 2. Push local code to VM using rsync
+  provisioner "local-exec" {
+    command = "rsync -avz -e 'ssh -o StrictHostKeyChecking=no -i ${var.ssh_private_key_path}' --exclude 'venv' --exclude '.terraform' --exclude '.git' --exclude '__pycache__' ${path.module}/../ ${var.ssh_user}@${google_compute_address.static_ip.address}:/home/${var.ssh_user}/delta-exchange"
   }
 
   # 3. Run the automated setup script

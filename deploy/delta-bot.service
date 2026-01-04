@@ -5,9 +5,10 @@ After=network.target
 [Service]
 Type=simple
 User=YOUR_VM_USER
-WorkingDirectory=/home/YOUR_VM_USER/delta-exchange
-EnvironmentFile=/home/YOUR_VM_USER/delta-exchange/.env
-ExecStart=/usr/bin/python3 main_v2.py
+WorkingDirectory=YOUR_WORKING_DIR
+EnvironmentFile=YOUR_WORKING_DIR/.env
+# This will be replaced by setup.sh with the actual venv python path
+ExecStart=YOUR_PYTHON_EXEC main_v2.py
 Restart=always
 RestartSec=10
 StandardOutput=syslog
