@@ -355,13 +355,13 @@ class BacktestEngine:
             if ta_result and ta_result.combined_signal != Signal.HOLD:
                 signals_generated += 1
 
-            # Check for entry signals
-            if self._can_open_position(data.symbol):
-                self._check_entry(
-                    data.symbol, current_bar, ta_result,
-                    historical_highs, historical_lows, historical_closes,
-                    historical_volumes=historical_volumes
-                )
+            # Check for entry signals (or position flip)
+            # Always call _check_entry - it handles position flipping internally
+            self._check_entry(
+                data.symbol, current_bar, ta_result,
+                historical_highs, historical_lows, historical_closes,
+                historical_volumes=historical_volumes
+            )
 
             # Update equity curve
             equity = self._calculate_equity(current_bar.close)
@@ -412,10 +412,24 @@ class BacktestEngine:
     def _can_open_position(self, symbol: str) -> bool:
         """Check if we can open a new position."""
         if symbol in self.open_positions:
+            log.debug(f"Already have open position in {symbol}, skipping signal")
             return False
         if len(self.open_positions) >= self.max_positions:
+            log.warning(f"Max positions ({self.max_positions}) reached, skipping signal for {symbol}")
             return False
         return True
+
+    def _should_flip_position(self, symbol: str, new_direction: str) -> bool:
+        """Check if we should close an existing position and flip to the opposite direction."""
+        if symbol not in self.open_positions:
+            return False
+        
+        existing_trade = self.open_positions[symbol]
+        existing_direction = existing_trade.direction.value
+        
+        # Flip if we have a LONG and want to go SHORT, or vice versa
+        return existing_direction != new_direction
+
 
     def _check_entry(
         self, symbol: str, bar: OHLCVBar, ta_result: Optional[TechnicalAnalysisResult],
@@ -437,6 +451,18 @@ class BacktestEngine:
 
         if direction is None:
             return
+
+        log.info(f"ENTRY CHECK for {symbol}: direction={direction}, signal={ta_result.combined_signal.value}, confidence={ta_result.confidence:.2f}")
+
+        # Position Flipping: If we have an open position in the OPPOSITE direction, close it first
+        if symbol in self.open_positions:
+            if self._should_flip_position(symbol, direction):
+                log.info(f"Flipping position on {symbol}: Closing {self.open_positions[symbol].direction.value} to open {direction}")
+                self._close_position(symbol, bar.close, bar.datetime, f"Position flip to {direction}")
+            else:
+                # Same direction, skip (already have a position)
+                return
+
 
         # Use Unified Signal Validator for consistent logic across systems
         # We need ADX, RSI, Volume, and Regime for the validator

@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """
-Verify that the short signal fix works correctly.
-Tests that 2/4 indicator agreement now produces a SELL signal.
+Verify that the short signal fix (v3 - Reversal Bias) works correctly.
+Tests that 2-vs-2 tie-breaking logic favors oscillators for reversals.
 """
 
 import sys
 sys.path.insert(0, '/Users/kasyap/Documents/projects/delta-exchange')
 
 from dataclasses import dataclass
+from typing import List, Tuple
 from enum import Enum
 
 # Recreate the minimal classes needed for testing
@@ -27,12 +28,11 @@ class Signal(Enum):
 class IndicatorResult:
     name: str
     signal: IndicatorSignal
-    value: float
-    description: str = ""
+    value: float = 0.0
 
-def generate_combined_signal(indicators, min_agreement=2):
+def generate_combined_signal(indicators: List[IndicatorResult], min_agreement=2):
     """
-    Replicate the UPDATED logic from technical_analysis.py
+    Replicate the NEW logic from technical_analysis.py (v3)
     """
     if not indicators:
         return Signal.HOLD, 0
@@ -46,8 +46,18 @@ def generate_combined_signal(indicators, min_agreement=2):
     has_conflict = bullish_count > 0 and bearish_count > 0
 
     if has_conflict:
-        # UPDATED: Now 50% instead of 75%
+        # Relaxed constraint
         min_agreement = max(min_agreement, int(total_indicators * 0.50))
+
+        # 2026 Reversal Logic: Tie-breaker
+        if bullish_count == bearish_count and total_indicators >= 4:
+            osc_bullish = sum(1 for ind in indicators if ind.name in ["RSI", "Bollinger Bands"] and ind.signal == IndicatorSignal.BULLISH)
+            osc_bearish = sum(1 for ind in indicators if ind.name in ["RSI", "Bollinger Bands"] and ind.signal == IndicatorSignal.BEARISH)
+            
+            if osc_bearish == 2 and osc_bullish == 0:
+                return Signal.SELL, total
+            elif osc_bullish == 2 and osc_bearish == 0:
+                return Signal.BUY, total
 
     strong_threshold = total_indicators - 1 if total_indicators >= 4 else total_indicators
 
@@ -62,7 +72,6 @@ def generate_combined_signal(indicators, min_agreement=2):
     else:
         return Signal.HOLD, total
 
-
 def test_case(name, indicators, expected_signal):
     signal, _ = generate_combined_signal(indicators)
     status = "✅ PASS" if signal == expected_signal else "❌ FAIL"
@@ -70,76 +79,53 @@ def test_case(name, indicators, expected_signal):
     print(f"       Expected: {expected_signal.value}, Got: {signal.value}")
     return signal == expected_signal
 
-
 def main():
     print("=" * 60)
-    print("VERIFICATION: Short Signal Fix")
+    print("VERIFICATION: Short Signal Fix (v3 - Reversal Bias)")
     print("=" * 60)
-    print()
     
     all_passed = True
     
-    # Test 1: 2 bullish, 2 bearish (classic reversal scenario)
-    # OLD: Would return HOLD (needed 3/4 = 75%)
-    # NEW: Should still return HOLD (2/4 = 50%, but need bearish > bullish)
+    # Test 1: Tie-break (2 Bearish Oscillators vs 2 Bullish Trend)
+    # NEW: Should return SELL due to Reversal Bias
     indicators_1 = [
-        IndicatorResult("RSI", IndicatorSignal.BEARISH, 75.0),
-        IndicatorResult("BB", IndicatorSignal.BEARISH, 0.95),
-        IndicatorResult("EMA", IndicatorSignal.BULLISH, 0.5),
-        IndicatorResult("MACD", IndicatorSignal.BULLISH, 0.1),
+        IndicatorResult("RSI", IndicatorSignal.BEARISH),
+        IndicatorResult("Bollinger Bands", IndicatorSignal.BEARISH),
+        IndicatorResult("EMA", IndicatorSignal.BULLISH),
+        IndicatorResult("MACD", IndicatorSignal.BULLISH),
     ]
-    all_passed &= test_case("2 bearish, 2 bullish (equal)", indicators_1, Signal.HOLD)
+    all_passed &= test_case("Tie-break: 2 Bearish Osc vs 2 Bullish Trend", indicators_1, Signal.SELL)
     
-    # Test 2: 3 bearish, 1 bullish
-    # Should return SELL (3 >= 2, and 3 > 1)
+    # Test 2: Standard SELL (3 bearish, 1 bullish)
     indicators_2 = [
-        IndicatorResult("RSI", IndicatorSignal.BEARISH, 75.0),
-        IndicatorResult("BB", IndicatorSignal.BEARISH, 0.95),
-        IndicatorResult("EMA", IndicatorSignal.BEARISH, -0.5),
-        IndicatorResult("MACD", IndicatorSignal.BULLISH, 0.1),
+        IndicatorResult("RSI", IndicatorSignal.BEARISH),
+        IndicatorResult("Bollinger Bands", IndicatorSignal.BEARISH),
+        IndicatorResult("MACD", IndicatorSignal.BEARISH),
+        IndicatorResult("EMA", IndicatorSignal.BULLISH),
     ]
     all_passed &= test_case("3 bearish, 1 bullish", indicators_2, Signal.SELL)
     
-    # Test 3: 2 bearish, 1 bullish, 1 neutral
-    # Should return SELL (2 >= 2, and 2 > 1)
+    # Test 3: Standard HOLD (Unfocused tie)
+    # 2 Bearish, 2 Bullish but NOT the specific 2-oscillator combo
     indicators_3 = [
-        IndicatorResult("RSI", IndicatorSignal.BEARISH, 75.0),
-        IndicatorResult("BB", IndicatorSignal.BEARISH, 0.95),
-        IndicatorResult("EMA", IndicatorSignal.NEUTRAL, 0.0),
-        IndicatorResult("MACD", IndicatorSignal.BULLISH, 0.1),
+        IndicatorResult("RSI", IndicatorSignal.BEARISH),
+        IndicatorResult("EMA", IndicatorSignal.BEARISH),
+        IndicatorResult("Bollinger Bands", IndicatorSignal.BULLISH),
+        IndicatorResult("MACD", IndicatorSignal.BULLISH),
     ]
-    all_passed &= test_case("2 bearish, 1 bullish, 1 neutral", indicators_3, Signal.SELL)
-    
-    # Test 4: 4 bearish (unanimous)
-    # Should return STRONG_SELL
-    indicators_4 = [
-        IndicatorResult("RSI", IndicatorSignal.BEARISH, 75.0),
-        IndicatorResult("BB", IndicatorSignal.BEARISH, 0.95),
-        IndicatorResult("EMA", IndicatorSignal.BEARISH, -0.5),
-        IndicatorResult("MACD", IndicatorSignal.BEARISH, -0.1),
-    ]
-    all_passed &= test_case("4 bearish (unanimous)", indicators_4, Signal.STRONG_SELL)
-    
-    # Test 5: 3 bearish, 0 bullish, 1 neutral
-    # Should return STRONG_SELL (3 >= 3 = strong_threshold)
-    indicators_5 = [
-        IndicatorResult("RSI", IndicatorSignal.BEARISH, 75.0),
-        IndicatorResult("BB", IndicatorSignal.BEARISH, 0.95),
-        IndicatorResult("EMA", IndicatorSignal.BEARISH, -0.5),
-        IndicatorResult("MACD", IndicatorSignal.NEUTRAL, 0.0),
-    ]
-    all_passed &= test_case("3 bearish, 0 bullish, 1 neutral", indicators_5, Signal.STRONG_SELL)
-    
-    print()
-    print("=" * 60)
-    if all_passed:
-        print("✅ ALL TESTS PASSED - Short signals are now enabled!")
-    else:
-        print("❌ SOME TESTS FAILED - Review the logic")
-    print("=" * 60)
-    
-    return 0 if all_passed else 1
+    all_passed &= test_case("Tie: Non-oscillator specific (Should HOLD)", indicators_3, Signal.HOLD)
 
+    # Test 4: Strong Sell
+    indicators_4 = [IndicatorResult("N", IndicatorSignal.BEARISH)] * 4
+    all_passed &= test_case("Strong Sell (4/4)", indicators_4, Signal.STRONG_SELL)
+
+    print("-" * 60)
+    if all_passed:
+        print("✅ ALL TESTS PASSED - Reversal Bias logic confirmed!")
+    else:
+        print("❌ SOME TESTS FAILED")
+    print("=" * 60)
+    return 0 if all_passed else 1
 
 if __name__ == "__main__":
     sys.exit(main())

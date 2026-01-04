@@ -185,8 +185,7 @@ class TechnicalAnalyzer:
         # Generate combined signal
         combined_signal, signal_strength = self._generate_combined_signal(indicators)
 
-        # Calculate confidence as the max of bullish or bearish count / total
-        # This way, 2 bullish + 2 bearish = 50% confidence (not 0%)
+        # Calculate base confidence as the max of bullish or bearish count / total
         if indicators:
             bullish_count = sum(
                 1 for ind in indicators if ind.signal == IndicatorSignal.BULLISH
@@ -195,7 +194,20 @@ class TechnicalAnalyzer:
                 1 for ind in indicators if ind.signal == IndicatorSignal.BEARISH
             )
             max_directional = max(bullish_count, bearish_count)
-            confidence = max_directional / len(indicators)
+            base_confidence = max_directional / len(indicators)
+            
+            # Profit Optimization: ADX Trend Strength Multiplier
+            # Strong trends (ADX > 25) increase confidence, choppy markets (ADX < 20) decrease it
+            try:
+                adx = self.calculate_adx(high, low, close)
+                if adx > 30:
+                    confidence = min(1.0, base_confidence * 1.2) # Strong Trend boost
+                elif adx < 20:
+                    confidence = base_confidence * 0.8 # Choppy Market penalty
+                else:
+                    confidence = base_confidence
+            except Exception:
+                confidence = base_confidence
         else:
             confidence = 0.0
 
@@ -208,7 +220,10 @@ class TechnicalAnalyzer:
             confidence=confidence,
         )
 
-        log.debug(f"TA for {symbol}: {result}")
+        if result.combined_signal != Signal.HOLD:
+            log.info(f"TA SIGNAL for {symbol}: {result.combined_signal.value} | Strength: {result.signal_strength} | Confidence: {result.confidence:.2f} | Bullish: {bullish_count} | Bearish: {bearish_count} | ADX: {adx if 'adx' in locals() else 'N/A'}")
+        else:
+            log.debug(f"TA for {symbol}: {result}")
 
         return result
 
@@ -590,6 +605,19 @@ class TechnicalAnalyzer:
             # This enables mean-reversion/reversal trades when aligned with higher TF trend
             min_agreement = max(min_agreement, int(total_indicators * 0.50))
 
+        # 2026 Reversal Logic: If indicators are tied (e.g. 2 vs 2), check for Oscillator bias
+        if bullish_count == bearish_count and total_indicators >= 4:
+            # Check if oscillators (RSI, BB) both lean one way
+            osc_bullish = sum(1 for ind in indicators if ind.name in ["RSI", "Bollinger Bands"] and ind.signal == IndicatorSignal.BULLISH)
+            osc_bearish = sum(1 for ind in indicators if ind.name in ["RSI", "Bollinger Bands"] and ind.signal == IndicatorSignal.BEARISH)
+            
+            if osc_bearish == 2 and osc_bullish == 0:
+                log.info(f"Tie-break detected: Reversal Oscillators favoring SELL. Breaking tie. Indicators: {[(i.name, i.signal.value) for i in indicators]}")
+                return Signal.SELL, total
+            elif osc_bullish == 2 and osc_bearish == 0:
+                log.info(f"Tie-break detected: Reversal Oscillators favoring BUY. Breaking tie. Indicators: {[(i.name, i.signal.value) for i in indicators]}")
+                return Signal.BUY, total
+
         # Strong signals require near-unanimous agreement (all or all-1)
         strong_threshold = (
             total_indicators - 1 if total_indicators >= 4 else total_indicators
@@ -615,8 +643,8 @@ class TechnicalAnalyzer:
         if result.combined_signal not in [Signal.BUY, Signal.STRONG_BUY]:
             return False
 
-        # Require minimum 50% confidence (configurable based on strict_mode)
-        min_confidence = 0.6 if self.strict_mode else 0.5
+        # Require minimum 40% confidence (relaxed further to debug missing signals)
+        min_confidence = 0.50 if self.strict_mode else 0.40
         return result.confidence >= min_confidence
 
     def should_enter_short(self, result: TechnicalAnalysisResult) -> bool:
@@ -626,10 +654,17 @@ class TechnicalAnalyzer:
         Enhanced: Requires minimum confidence threshold.
         """
         if result.combined_signal not in [Signal.SELL, Signal.STRONG_SELL]:
+            log.debug(f"should_enter_short: FAIL - signal is {result.combined_signal.value}, not SELL/STRONG_SELL")
             return False
 
-        min_confidence = 0.6 if self.strict_mode else 0.5
-        return result.confidence >= min_confidence
+        # Require minimum 40% confidence (relaxed to capture early reversals)
+        min_confidence = 0.50 if self.strict_mode else 0.40
+        if result.confidence < min_confidence:
+            log.debug(f"should_enter_short: FAIL - confidence {result.confidence:.2f} < {min_confidence}")
+            return False
+        
+        log.info(f"should_enter_short: PASS - signal={result.combined_signal.value}, confidence={result.confidence:.2f}")
+        return True
 
     def should_close_long(self, result: TechnicalAnalysisResult) -> bool:
         """Check if we should close a long position."""

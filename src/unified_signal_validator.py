@@ -67,10 +67,19 @@ class UnifiedSignalValidator:
         
         # 4. Higher Timeframe Trend Alignment (Multi-Timeframe Filter)
         if higher_tf_trend not in ["unknown", "neutral"]:
+            # 2026 Enhanced Logic: Allow counter-trend trades IF confidence is high (Specialized Reversal)
+            # Relaxed to 0.50 for testing to see if shorts trigger
+            is_high_confidence = hasattr(ta_result, 'confidence') and ta_result.confidence >= 0.50
+            
             if direction == "long" and higher_tf_trend != "bullish":
-                return False, ValidationResult.REJECTED_COUNTER_TREND, f"Long signal conflicts with {higher_tf_trend} 4h trend"
+                if not is_high_confidence:
+                    return False, ValidationResult.REJECTED_COUNTER_TREND, f"Long signal conflicts with {higher_tf_trend} 4h trend (Confidence {ta_result.confidence:.2f} < 0.50)"
+                log.info(f"Allowing counter-trend LONG due to high confidence {ta_result.confidence:.2f}")
+                
             if direction == "short" and higher_tf_trend != "bearish":
-                return False, ValidationResult.REJECTED_COUNTER_TREND, f"Short signal conflicts with {higher_tf_trend} 4h trend"
+                if not is_high_confidence:
+                    return False, ValidationResult.REJECTED_COUNTER_TREND, f"Short signal conflicts with {higher_tf_trend} 4h trend (Confidence {ta_result.confidence:.2f} < 0.50)"
+                log.info(f"Allowing counter-trend SHORT due to high confidence {ta_result.confidence:.2f}")
 
         # 5. RSI Safety Filter
         if rsi is not None:
