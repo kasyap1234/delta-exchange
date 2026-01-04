@@ -205,22 +205,32 @@ class MultiStrategyBot:
             
             # Paper Trading: Process entries and exits
             if self.paper_trade and self.paper_simulator:
-                # Get current prices for all trading pairs
+                # Get current prices and ATRs for all trading pairs
                 prices = {}
+                atrs = {}
                 current_signals = {}
                 for pair in settings.trading.trading_pairs:
                     try:
                         ticker = self.client.get_ticker(pair)
                         prices[pair] = float(ticker.get('mark_price', 0))
+                        
+                        # Fetch candles for ATR calculation (required for trailing stops)
+                        candles = self.client.get_candles(symbol=pair, resolution='15m')
+                        if len(candles) >= 15:
+                            highs = np.array([c.high for c in candles])
+                            lows = np.array([c.low for c in candles])
+                            closes = np.array([c.close for c in candles])
+                            atrs[pair] = self.strategy_manager.analyzer.calculate_atr(highs, lows, closes)
+                            
                     except (KeyError, ValueError, TypeError, AttributeError) as e:
-                        log.debug(f"Could not get price for {pair}: {e}")
+                        log.debug(f"Could not get data for {pair}: {e}")
                         continue
                     except Exception as e:
-                        log.warning(f"Unexpected error getting ticker for {pair}: {e}")
+                        log.warning(f"Unexpected error getting data for {pair}: {e}")
                         continue
                 
-                # Update prices and check exit conditions
-                self.paper_simulator.update_prices(prices)
+                # Update prices and check exit conditions with ATRs
+                self.paper_simulator.update_prices(prices, atrs=atrs)
                 
                 # Build current signals map for reversal detection
                 for signal in signals:

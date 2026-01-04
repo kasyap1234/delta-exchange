@@ -15,6 +15,7 @@ from src.risk_manager import RiskManager, PositionSizing
 from src.hedging.hedge_manager import HedgeManager, HedgedPosition
 from src.hedging.correlation import CorrelationCalculator
 from src.delta_client import DeltaExchangeClient  # Needed for types, even if mocked
+from src.unified_signal_validator import UnifiedSignalValidator, ValidationResult
 from config.settings import settings
 from utils.logger import log
 
@@ -217,6 +218,7 @@ class BacktestEngine:
         # Trading components
         self.analyzer = TechnicalAnalyzer()
         self.risk_manager = RiskManager()
+        self.signal_validator = UnifiedSignalValidator()
         
         # Initialize Hedging Components (Mock Client)
         class MockClient(DeltaExchangeClient):
@@ -253,12 +255,8 @@ class BacktestEngine:
     def reset(self) -> None:
         """Reset engine state for new backtest."""
         self.capital = self.initial_capital
-    def reset(self) -> None:
-        """Reset engine state for new backtest."""
-        self.capital = self.initial_capital
         self.open_positions = {}
         self.active_hedges = {}
-        self.closed_trades = []
         self.closed_trades = []
         self.equity_curve = [self.initial_capital]
         self.trade_counter = 0
@@ -293,6 +291,7 @@ class BacktestEngine:
             historical_closes = data.closes[: i + 1]
             historical_highs = data.highs[: i + 1]
             historical_lows = data.lows[: i + 1]
+            historical_volumes = data.volumes[: i + 1]
 
             # --- HEDGING LOGIC (Pre-check) ---
             # Check for intra-bar hedge triggers BEFORE stop-loss kills the trade
@@ -325,7 +324,17 @@ class BacktestEngine:
                      self.active_hedges[symbol] = True
 
             # Update open positions (check stop-loss/take-profit)
-            self._update_positions(current_price=current_bar.close, low=current_bar.low, high=current_bar.high, bar_time=current_bar.datetime)
+            atr = None
+            if len(historical_closes) >= 14:
+                 atr = self.analyzer.calculate_atr(historical_highs, historical_lows, historical_closes)
+
+            self._update_positions(
+                current_price=current_bar.close,
+                low=current_bar.low,
+                high=current_bar.high,
+                bar_time=current_bar.datetime,
+                atr=atr
+            )
 
             # --- FUNDING ARBITRAGE SIMULATION ---
             # Simulate low-risk funding arb income (0.03% daily or ~11% APY)
@@ -350,7 +359,8 @@ class BacktestEngine:
             if self._can_open_position(data.symbol):
                 self._check_entry(
                     data.symbol, current_bar, ta_result,
-                    historical_highs, historical_lows, historical_closes
+                    historical_highs, historical_lows, historical_closes,
+                    historical_volumes=historical_volumes
                 )
 
             # Update equity curve
@@ -412,43 +422,78 @@ class BacktestEngine:
         historical_highs: Optional[np.ndarray] = None,
         historical_lows: Optional[np.ndarray] = None,
         historical_closes: Optional[np.ndarray] = None,
+        historical_volumes: Optional[np.ndarray] = None,
     ) -> None:
         """Check for entry signals and open position if valid."""
         if ta_result is None:
             return
 
-        # Check signal strength
-        if ta_result.signal_strength < self.min_signal_strength:
-            return
-
-        # ADX Trend Filter: Skip trades in very choppy markets
-        if historical_highs is not None and historical_lows is not None and historical_closes is not None:
-            adx = self.analyzer.calculate_adx(historical_highs, historical_lows, historical_closes)
-            if adx < 15:  # Reduced from 20 - allow moderate trends
-                return
-
+        # Determine direction
         direction = None
-
-        # Check for long entry
         if self.analyzer.should_enter_long(ta_result):
-            direction = TradeDirection.LONG
-        # Check for short entry
+            direction = "long"
         elif self.analyzer.should_enter_short(ta_result):
-            direction = TradeDirection.SHORT
+            direction = "short"
 
         if direction is None:
             return
 
+        # Use Unified Signal Validator for consistent logic across systems
+        # We need ADX, RSI, Volume, and Regime for the validator
+        adx = 0.0
+        rsi = None
+        volume_signal = "neutral"
+        market_regime = "trending"
+        
+        if historical_highs is not None and historical_lows is not None and historical_closes is not None:
+            adx = self.analyzer.calculate_adx(historical_highs, historical_lows, historical_closes)
+            rsi = self.analyzer.calculate_rsi(historical_closes)
+            
+            if historical_volumes is not None:
+                vol_res = self.analyzer.calculate_volume_signal(historical_volumes, historical_closes)
+                volume_signal = vol_res.signal.value if hasattr(vol_res.signal, 'value') else str(vol_res.signal)
+                
+                # Market regime (Trend vs Range)
+                # Since AdvancedIndicators is usually an attribute of analyzer if it's there
+                # Or we can use a simpler version if needed.
+                # TechnicalAnalyzer.is_trending is already a good proxy
+                is_trending, _ = self.analyzer.is_trending(historical_highs, historical_lows, historical_closes)
+                market_regime = "trending" if is_trending else "ranging"
+
+        # In backtest, we might not have higher_tf_trend easily available per bar unless pre-calculated
+        # For now, we'll use neutral if not provided, but we can pass it if we expand the engine.
+        higher_tf_trend = "neutral" 
+        
+        is_valid, validation_result, reason = self.signal_validator.validate_entry(
+            symbol=symbol,
+            direction=direction,
+            ta_result=ta_result,
+            higher_tf_trend=higher_tf_trend,
+            adx=adx,
+            rsi=rsi,
+            volume_signal=volume_signal,
+            market_regime=market_regime
+        )
+        
+        if not is_valid:
+            log.debug(f"Backtest: {symbol} entry rejected: {reason}")
+            return
+
+        log.info(f"Backtest: {symbol} entry approved: {reason}")
+
+        # Map back to TradeDirection enum if needed, or use strings
+        trade_dir = TradeDirection.LONG if direction == "long" else TradeDirection.SHORT
+
         # Calculate position size
         entry_price = bar.close * (
             1 + self.slippage_pct
-            if direction == TradeDirection.LONG
+            if trade_dir == TradeDirection.LONG
             else 1 - self.slippage_pct
         )
 
         sizing = self.risk_manager.calculate_position_size(
             symbol=symbol,
-            side="buy" if direction == TradeDirection.LONG else "sell",
+            side="buy" if trade_dir == TradeDirection.LONG else "sell",
             entry_price=entry_price,
             available_balance=self.capital,
         )
@@ -466,7 +511,7 @@ class BacktestEngine:
         trade = BacktestTrade(
             id=self.trade_counter,
             symbol=symbol,
-            direction=direction,
+            direction=trade_dir,
             entry_time=bar.datetime,
             entry_price=entry_price,
             size=leveraged_size,
@@ -482,41 +527,59 @@ class BacktestEngine:
         self.capital -= commission
 
         self.open_positions[symbol] = trade
-        log.debug(f"Opened {direction.value} position on {symbol} @ {entry_price:.2f}")
+        log.debug(f"Opened {direction} position on {symbol} @ {entry_price:.2f}")
 
-    def _update_positions(self, current_price: float, low: float, high: float, bar_time: str) -> None:
+    def _update_positions(self, current_price: float, low: float, high: float, bar_time: str, atr: Optional[float] = None) -> None:
         """Update open positions and check exit/trailing conditions."""
         for symbol in list(self.open_positions.keys()):
             trade = self.open_positions[symbol]
 
             # 1. Update Trailing Stop / Break-Even
-            # Calculate current R-multiple for this trade
-            risk_amount = abs(trade.entry_price - trade.stop_loss)
-            if risk_amount > 0:
-                unrealized_pnl = trade.calculate_pnl(current_price)
-                r_multiple = unrealized_pnl / (risk_amount * trade.size) if trade.size > 0 else 0
-                
-                # Break-Even: After 1.0R profit, move SL to entry
-                if r_multiple >= 1.0 and trade.stop_loss != trade.entry_price:
-                    # Move stop loss to entry price + small buffer (0.1%)
-                    buffer = trade.entry_price * 0.001
-                    if trade.direction == TradeDirection.LONG:
-                        trade.stop_loss = trade.entry_price + buffer
-                    else:
-                        trade.stop_loss = trade.entry_price - buffer
-                    log.debug(f"Moved SL to Break-Even for {symbol} (Profit > 1R)")
+            # Calculate current R-multiple using RiskManager
+            r_multiple = self.risk_manager.get_r_multiple(
+                entry_price=trade.entry_price,
+                current_price=current_price,
+                stop_loss=trade.stop_loss, # Note: this should ideally use INITIAL stop loss for R tracking
+                side="buy" if trade.direction == TradeDirection.LONG else "sell"
+            )
+            
+            # Use original risk for R-multiple consistency if stored
+            # (In this backtestTrade, stop_loss is mutated, so we might want to store initial_sl)
+            # For now, let's assume trade.stop_loss is what we use.
 
-                # Trailing: After 1.5R, trail at 2.0x ATR distance (simplified for backtest)
-                # For simplified backtest without live ATR here, we use a fixed 2.5% trail
-                if r_multiple >= 1.5:
-                    if trade.direction == TradeDirection.LONG:
-                        new_sl = current_price * 0.975 # 2.5% trail
-                        if new_sl > trade.stop_loss:
-                            trade.stop_loss = new_sl
-                    else:
-                        new_sl = current_price * 1.025
-                        if new_sl < trade.stop_loss:
-                            trade.stop_loss = new_sl
+            # Break-Even: After 1.0R profit, move SL to entry
+            if r_multiple >= 1.0 and trade.stop_loss != trade.entry_price:
+                new_sl = self.risk_manager.calculate_break_even_stop(
+                    entry_price=trade.entry_price,
+                    side="buy" if trade.direction == TradeDirection.LONG else "sell"
+                )
+                
+                # Only move if it improves the stop
+                if trade.direction == TradeDirection.LONG:
+                    if new_sl > trade.stop_loss:
+                        trade.stop_loss = new_sl
+                        log.debug(f"Moved SL to Break-Even for {symbol} @ {new_sl:.2f}")
+                else:
+                    if new_sl < trade.stop_loss:
+                        trade.stop_loss = new_sl
+                        log.debug(f"Moved SL to Break-Even for {symbol} @ {new_sl:.2f}")
+
+            # Trailing: After 1.5R, trail at ATR distance
+            if r_multiple >= 1.5 and atr is not None:
+                new_trail_sl = self.risk_manager.calculate_trailing_stop(
+                    entry_price=trade.entry_price,
+                    current_price=current_price,
+                    atr=atr,
+                    side="buy" if trade.direction == TradeDirection.LONG else "sell",
+                    multiplier=getattr(settings.enhanced_risk, "atr_stop_multiplier", 2.0)
+                )
+                
+                if trade.direction == TradeDirection.LONG:
+                    if new_trail_sl > trade.stop_loss:
+                        trade.stop_loss = new_trail_sl
+                else:
+                    if new_trail_sl < trade.stop_loss:
+                        trade.stop_loss = new_trail_sl
 
             # 2. Check Exits (SL/TP)
             if trade.direction == TradeDirection.LONG:

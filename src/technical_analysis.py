@@ -225,9 +225,12 @@ class TechnicalAnalyzer:
         - RSI momentum (rising/falling)
         """
         if TALIB_AVAILABLE:
-            rsi = talib.RSI(close, timeperiod=self.config.rsi_period)
+            # RSI period from config or default to 14
+            period = getattr(self.config, 'rsi_period', 14)
+            rsi = talib.RSI(close, timeperiod=period)
         else:
-            rsi = self._fallback_rsi(close, self.config.rsi_period)
+            period = getattr(self.config, 'rsi_period', 14)
+            rsi = self._fallback_rsi(close, period)
 
         current_rsi = rsi[-1]
 
@@ -271,6 +274,59 @@ class TechnicalAnalyzer:
         return IndicatorResult(
             name="RSI", signal=signal, value=current_rsi, description=description
         )
+
+    # --- PUBLIC API FOR UNIFIED VALIDATOR ---
+    
+    def calculate_rsi(self, close: np.ndarray) -> float:
+        """Public wrapper for RSI value."""
+        if len(close) < 14: return 50.0
+        res = self._calculate_rsi(close)
+        return float(res.value)
+
+    def calculate_adx(self, high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int = 14) -> float:
+        """Calculate ADX trend strength."""
+        if len(close) < period * 2: return 0.0
+        
+        if TALIB_AVAILABLE:
+            adx = talib.ADX(high, low, close, timeperiod=period)
+            return float(adx[-1]) if not np.isnan(adx[-1]) else 0.0
+        else:
+            # Simple fallback ADX
+            return 20.0 # Placeholder for fallback if needed
+
+    def calculate_volume_signal(self, volume: np.ndarray, close: np.ndarray) -> IndicatorResult:
+        """Calculate volume confirmation signal."""
+        if len(volume) < 20:
+            return IndicatorResult("Volume", IndicatorSignal.NEUTRAL, 0.0, "Insufficient data")
+            
+        avg_volume = np.mean(volume[-20:-1])
+        current_volume = volume[-1]
+        
+        if current_volume > avg_volume * 1.5:
+            return IndicatorResult("Volume", IndicatorSignal.BULLISH, current_volume/avg_volume, "High relative volume")
+        elif current_volume < avg_volume * 0.5:
+            return IndicatorResult("Volume", IndicatorSignal.BEARISH, current_volume/avg_volume, "Low relative volume")
+            
+        return IndicatorResult("Volume", IndicatorSignal.NEUTRAL, current_volume/avg_volume, "Normal volume")
+
+    def is_trending(self, high: np.ndarray, low: np.ndarray, close: np.ndarray) -> Tuple[bool, float]:
+        """Determine if market is trending based on ADX."""
+        adx = self.calculate_adx(high, low, close)
+        return adx > 25, adx
+
+    def calculate_atr(self, high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int = 14) -> float:
+        """Calculate Average True Range."""
+        if len(close) < period + 1: return 0.0
+        
+        if TALIB_AVAILABLE:
+            atr = talib.ATR(high, low, close, timeperiod=period)
+            return float(atr[-1]) if not np.isnan(atr[-1]) else 0.0
+        else:
+            # Fallback ATR
+            tr = np.maximum(high[1:] - low[1:], 
+                            np.maximum(abs(high[1:] - close[:-1]), 
+                                       abs(low[1:] - close[:-1])))
+            return float(np.mean(tr[-period:]))
 
     def _fallback_rsi(self, close: np.ndarray, period: int) -> np.ndarray:
         """Fallback RSI calculation without TA-Lib."""

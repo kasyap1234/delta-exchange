@@ -269,7 +269,7 @@ class SignalFilterConfig:
 
     # Minimum ADX for trend trades
     min_adx_for_trend: float = field(
-        default_factory=lambda: float(os.getenv("MIN_ADX_FOR_TREND", "20.0"))
+        default_factory=lambda: float(os.getenv("MIN_ADX_FOR_TREND", "15.0"))
     )
 
 
@@ -379,7 +379,7 @@ class TradingConfig:
 
     # Minimum confidence for trade entry (0.0 - 1.0)
     min_entry_confidence: float = field(
-        default_factory=lambda: float(os.getenv("MIN_ENTRY_CONFIDENCE", "0.65"))
+        default_factory=lambda: float(os.getenv("MIN_ENTRY_CONFIDENCE", "0.50"))
     )
 
     # Leverage setting (5x is conservative, 10x is aggressive)

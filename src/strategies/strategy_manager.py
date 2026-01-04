@@ -22,9 +22,12 @@ from src.strategies.multi_timeframe import MultiTimeframeStrategy
 from src.delta_client import DeltaExchangeClient, Position
 from src.websocket_client import DeltaWebSocketClient
 from src.position_sync import PositionSyncManager
+from src.technical_analysis import TechnicalAnalyzer
+from src.risk_manager import RiskManager
 from config.settings import settings
 from utils.logger import log
 from src.utils.persistence_manager import PersistenceManager
+import numpy as np
 
 
 class TradingState(str, Enum):
@@ -136,6 +139,10 @@ class StrategyManager:
         # Don't start WebSocket immediately - let it be optional
         # self._start_websocket_thread()
         self.today_stats: Optional[DailyStats] = None
+
+        # Risk and Analysis
+        self.risk_manager = RiskManager()
+        self.analyzer = TechnicalAnalyzer()
 
         # Initialize strategies
         self.strategies: Dict[StrategyType, BaseStrategy] = {}
@@ -470,84 +477,65 @@ class StrategyManager:
                 # If we don't know current SL easily, we might hammer API with updates.
                 # Optimization: Only update if condition met.
                 
-                # Calculate R-multiple
-                # Risk is typically 2% of entry. R = 0.02 * Entry
-                # Or determine strictly from Entry - SL. 
-                # Since we don't have original SL easily, we assume standard 2% risk for R calcs
-                # to align with "Sniper" logic which is normalized.
-                risk_per_unit = entry_price * 0.02
+                # Calculate current R-multiple using RiskManager
+                # We assume standard 2% risk for R calcs if original SL not available
+                # Logic: |Entry - SL_Initial| = 0.02 * Entry
+                initial_sl = entry_price * 0.98 if size > 0 else entry_price * 1.02
                 
-                if size > 0: # LONG
-                    pnl_per_unit = current_price - entry_price
-                    r_multiple = pnl_per_unit / risk_per_unit
+                r_multiple = self.risk_manager.get_r_multiple(
+                    entry_price=entry_price,
+                    current_price=current_price,
+                    stop_loss=initial_sl,
+                    side="long" if size > 0 else "short"
+                )
+                
+                # 1. Break-Even Check (Profit > 1.0R)
+                if r_multiple >= 1.0:
+                    target_be_sl = self.risk_manager.calculate_break_even_stop(
+                        entry_price=entry_price,
+                        side="long" if size > 0 else "short"
+                    )
                     
-                    # 1. Break-Even Check (Profit > 1R)
-                    if r_multiple >= 1.0:
-                        # Target SL is Entry + small buffer (0.1%)
-                        target_sl = entry_price * 1.001
-                        
-                        # We can't easily check if specific SL exists without parsing orders deep.
-                        # But we can check if current price > entry * 1.02 (1R).
-                        # We should only update if we haven't already.
-                        # A simple heuristic: If current SL < Entry (loss zone), move to Entry.
-                        # But we rely on 'update_bracket_order' to fail/warn if no change.
-                        
-                        # better: Check if we are in "trailing zone" (1.5R) first
-                        if r_multiple >= 1.5:
-                            # Trail by 2.5% (approx 2x ATR)
-                            # In backtest we used fixed 2.5% for simplicity
-                            trail_dist = current_price * 0.025
-                            new_sl = current_price - trail_dist
-                            
-                            # Update if new_sl > target_sl (which is break even)
-                            # We send update.
-                            log.info(f"Trailing SL logic for {symbol}: 1.5R reached. New SL: {new_sl}")
-                            self.client.update_bracket_order(
-                                product_id=position.product_id,
-                                stop_loss_price=new_sl
-                            )
-                        
-                        else:
-                            # Just Break-Even (1R to 1.5R)
-                            # We want to ensure SL is at least at Entry.
-                            # We'll blindly send update to Entry + buffer. 
-                            # If it's already higher (trailing), this might lower it? 
-                            # NO, we must NOT lower SL. 
-                            pass 
-                            # To do this safely without knowing current SL, is hard.
-                            # But wait, update_bracket_order is cheap.
-                            # Actually, we should only do this ONCE.
-                             
-                            # Let's implement the safely: 
-                            # Move to BE if PnL > 1R.
-                            log.info(f"Break-Even logic for {symbol}: 1.0R reached. Moving SL to Entry.")
-                            self.client.update_bracket_order(
-                                product_id=position.product_id,
-                                stop_loss_price=target_sl
-                            )
+                    # 2. Trailing Stop Check (Profit > 1.5R)
+                    if r_multiple >= 1.5:
+                        # Fetch candles for ATR
+                        try:
+                            candles = self.client.get_candles(symbol=symbol, resolution='15m')
+                            if len(candles) >= 15:
+                                highs = np.array([c.high for c in candles])
+                                lows = np.array([c.low for c in candles])
+                                closes = np.array([c.close for c in candles])
+                                atr = self.analyzer.calculate_atr(highs, lows, closes)
+                                
+                                new_trail_sl = self.risk_manager.calculate_trailing_stop(
+                                    entry_price=entry_price,
+                                    current_price=current_price,
+                                    atr=atr,
+                                    side="long" if size > 0 else "short",
+                                    multiplier=getattr(settings.enhanced_risk, "atr_stop_multiplier", 2.0)
+                                )
+                                
+                                # Use higher of BE or Trail
+                                if size > 0: # LONG
+                                    final_sl = max(target_be_sl, new_trail_sl)
+                                else: # SHORT
+                                    final_sl = min(target_be_sl, new_trail_sl)
+                                
+                                log.info(f"Trailing SL logic for {symbol}: 1.5R reached. New SL: {final_sl:.2f}")
+                                self.client.update_bracket_order(
+                                    product_id=position.product_id,
+                                    stop_loss_price=final_sl
+                                )
+                                continue # Skip BE move if trailing
+                        except Exception as e:
+                            log.warning(f"Failed to calculate trailing stop for {symbol}: {e}")
 
-                elif size < 0: # SHORT
-                    pnl_per_unit = entry_price - current_price
-                    r_multiple = pnl_per_unit / risk_per_unit
-                    
-                    if r_multiple >= 1.0:
-                        target_sl = entry_price * 0.999 # Entry - buffer
-                        
-                        if r_multiple >= 1.5:
-                            trail_dist = current_price * 0.025
-                            new_sl = current_price + trail_dist
-                            
-                            log.info(f"Trailing SL logic for {symbol}: 1.5R reached. New SL: {new_sl}")
-                            self.client.update_bracket_order(
-                                product_id=position.product_id,
-                                stop_loss_price=new_sl
-                            )
-                        else:
-                            log.info(f"Break-Even logic for {symbol}: 1.0R reached. Moving SL to Entry.")
-                            self.client.update_bracket_order(
-                                product_id=position.product_id,
-                                stop_loss_price=target_sl
-                            )
+                    # Just Break-Even (1.0R to 1.5R, or if trailing failed)
+                    log.info(f"Break-Even logic for {symbol}: 1.0R reached. Moving SL to Entry.")
+                    self.client.update_bracket_order(
+                        product_id=position.product_id,
+                        stop_loss_price=target_be_sl
+                    )
 
             except Exception as e:
                 log.error(f"Failed to manage active position for {position.product_symbol}: {e}")

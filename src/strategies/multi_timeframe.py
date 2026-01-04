@@ -11,10 +11,9 @@ from src.strategies.base_strategy import (
     BaseStrategy, StrategyType, StrategySignal, SignalDirection
 )
 from src.delta_client import DeltaExchangeClient, Position
-from src.technical_analysis import (
-    TechnicalAnalyzer, MultiTimeframeAnalyzer, 
-    TechnicalAnalysisResult, Signal, IndicatorSignal
-)
+from src.technical_analysis import TechnicalAnalyzer, IndicatorSignal
+from src.strategies.mtf_analyzer import MultiTimeframeAnalyzer
+from src.unified_signal_validator import UnifiedSignalValidator
 from config.settings import settings
 from utils.logger import log
 import numpy as np
@@ -95,38 +94,15 @@ class MultiTimeframeStrategy(BaseStrategy):
         # Remaining 50% trails
     ]
     
-    def __init__(self, client: DeltaExchangeClient,
-                 capital_allocation: float = 0.2,
-                 higher_tf: str = '4h',
-                 entry_tf: str = '15m',
-                 dry_run: bool = False):
-        """
-        Initialize multi-timeframe strategy.
-        
-        Args:
-            client: Delta Exchange API client
-            capital_allocation: Portion of capital to allocate (default 20%)
-            higher_tf: Higher timeframe for trend (default 4h)
-            entry_tf: Entry timeframe for signals (default 15m)
-            dry_run: If True, don't execute real trades
-        """
+    def __init__(self, client: DeltaExchangeClient, capital_allocation: float = 0.20, dry_run: bool = False):
         super().__init__(client, capital_allocation, dry_run)
-        
-        self.higher_tf = higher_tf
-        self.entry_tf = entry_tf
-        
-        # Initialize analyzers
         self.analyzer = TechnicalAnalyzer()
-        self.mtf_analyzer = MultiTimeframeAnalyzer(
-            client, higher_tf=higher_tf, entry_tf=entry_tf
-        )
-        
-        # Trading pairs
+        self.mtf_analyzer = MultiTimeframeAnalyzer(client)
+        self.signal_validator = UnifiedSignalValidator()
         self.trading_pairs = getattr(settings.trading, 'trading_pairs',
                                      ['BTCUSD', 'ETHUSD', 'SOLUSD'])
-        
-        # Track positions with trailing stops
         self._mtf_positions: Dict[str, MTFPosition] = {}
+        log.info(f"MultiTimeframeStrategy initialized with {capital_allocation:.0%} allocation")
     
     @property
     def strategy_type(self) -> StrategyType:
@@ -209,7 +185,7 @@ class MultiTimeframeStrategy(BaseStrategy):
                          f"Entry: {mtf_result.get('entry_signal')}")
                 continue
             
-            # Refined filters: ADX and Volume
+            # Refined filters using Unified Signal Validator
             try:
                 # Use entry timeframe for confirmed signals
                 resolution = getattr(settings.trading, 'candle_interval', '15m')
@@ -221,30 +197,54 @@ class MultiTimeframeStrategy(BaseStrategy):
                     close = np.array([c.close for c in candles])
                     volume = np.array([c.volume for c in candles])
                     
-            # ADX filter (Trend strength)
-                    is_trending, adx = self.analyzer.is_trending(high, low, close, min_adx=15.0)
-                    if not is_trending:
-                        log.info(f"MTF: {symbol} rejected - ADX {adx:.1f} < 15 (weak trend)")
-                        continue
-                        
-                    # Volume filter (Confirmation)
-                    vol_result = self.analyzer.calculate_volume_signal(volume, close)
-                    if vol_result.signal == IndicatorSignal.NEUTRAL:
-                        log.info(f"MTF: {symbol} rejected - weak volume confirmation ({vol_result.description})")
-                        continue
-                        
-                    # RSI Safety Filter (Prevent buying top / selling bottom)
+                    # Calculate indicators for validator
+                    is_trending, adx_val = self.analyzer.is_trending(high, low, close)
                     rsi_val = self.analyzer.calculate_rsi(close)
-                    if mtf_result['entry_signal'] == 'buy' and rsi_val > 65:
-                         log.info(f"MTF: {symbol} rejected - RSI {rsi_val:.1f} too high for BUY (Overbought)")
-                         continue
-                    if mtf_result['entry_signal'] == 'sell' and rsi_val < 35:
-                         log.info(f"MTF: {symbol} rejected - RSI {rsi_val:.1f} too low for SELL (Oversold)")
-                         continue
+                    
+                    # Volume confirmation
+                    volume_res = self.analyzer.calculate_volume_signal(volume, close)
+                    vol_signal = volume_res.signal.value if hasattr(volume_res.signal, 'value') else str(volume_res.signal)
+                    
+                    # Market regime
+                    market_regime = "trending" if is_trending else "ranging"
+                    
+                    # Construct a mock ta_result for the validator
+                    # Validator uses confidence and signal_strength (agreement)
+                    class MockTAResult:
+                        def __init__(self, confidence, agreement):
+                            self.confidence = confidence
+                            self.signal_strength = agreement
+                            
+                    ta_result = MockTAResult(
+                        confidence=mtf_result.get('entry_confidence', 0.5),
+                        agreement=mtf_result.get('agreement_count', 2)
+                    )
+                    
+                    higher_tf_trend = mtf_result.get('higher_tf_trend', 'neutral')
+                    direction_str = mtf_result.get('entry_signal') # 'buy' or 'sell'
+                    
+                    # Convert 'buy'/'sell' to 'long'/'short' if needed
+                    if direction_str == 'buy': direction_str = 'long'
+                    if direction_str == 'sell': direction_str = 'short'
+
+                    is_valid, validation_result, reason = self.signal_validator.validate_entry(
+                        symbol=symbol,
+                        direction=direction_str,
+                        ta_result=ta_result,
+                        higher_tf_trend=higher_tf_trend,
+                        adx=adx_val,
+                        rsi=rsi_val,
+                        volume_signal=vol_signal,
+                        market_regime=market_regime
+                    )
+                    
+                    if not is_valid:
+                        log.info(f"MTF: {symbol} rejected - {reason}")
+                        continue
                         
-                    log.info(f"MTF filters passed for {symbol}: ADX={adx:.1f}, Vol={vol_result.description}, RSI={rsi_val:.1f}")
+                    log.info(f"MTF filters passed for {symbol}: {reason}")
             except Exception as e:
-                log.warning(f"Failed to apply filters for {symbol}: {e}")
+                log.warning(f"Failed to apply unified filters for {symbol}: {e}")
                 continue
             
             # Aligned and filtered! Create signal

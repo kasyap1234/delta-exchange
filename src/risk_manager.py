@@ -409,3 +409,61 @@ class RiskManager:
             return round(size, 4)
         else:
             return round(size, 3)
+
+    def calculate_break_even_stop(self, entry_price: float, side: str, 
+                                   buffer_pct: float = 0.001) -> float:
+        """
+        Calculate break-even stop price with small buffer to cover fees.
+        
+        Args:
+            entry_price: The price at which position was opened
+            side: 'buy'/'long' or 'sell'/'short'
+            buffer_pct: Small offset to ensure profit after fees (default 0.1%)
+        """
+        if side.lower() in ["buy", "long"]:
+            return entry_price * (1 + buffer_pct)
+        else:
+            return entry_price * (1 - buffer_pct)
+
+    def calculate_trailing_stop(self, entry_price: float, current_price: float,
+                                atr: float, side: str, multiplier: float = 2.0) -> float:
+        """
+        Calculate dynamic ATR-based trailing stop price.
+        Ensures the stop only moves in favor of the trade.
+        
+        Args:
+            entry_price: Original entry price (minimum floor for trailing)
+            current_price: Current market price
+            atr: Current Average True Range
+            side: 'buy'/'long' or 'sell'/'short'
+            multiplier: ATR multiplier (default 2.0)
+        """
+        if side.lower() in ["buy", "long"]:
+            # Move up, but never below previous high or entry
+            return max(entry_price, current_price - (atr * multiplier))
+        else:
+            # Move down, but never above previous low or entry
+            return min(entry_price, current_price + (atr * multiplier))
+
+    def get_r_multiple(self, entry_price: float, current_price: float, 
+                       stop_loss: float, side: str) -> float:
+        """
+        Calculate current ROI in terms of initial risk (R-multiple).
+        1.0R = current profit equals the amount initially risked.
+        
+        Args:
+            entry_price: Opening price
+            current_price: Current price
+            stop_loss: Initial stop loss price
+            side: 'buy'/'long' or 'sell'/'short'
+        """
+        risk_per_unit = abs(entry_price - stop_loss)
+        if risk_per_unit <= 0:
+            return 0.0
+            
+        if side.lower() in ["buy", "long"]:
+            pnl_per_unit = current_price - entry_price
+        else:
+            pnl_per_unit = entry_price - current_price
+            
+        return pnl_per_unit / risk_per_unit

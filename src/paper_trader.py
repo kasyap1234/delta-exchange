@@ -11,6 +11,8 @@ import json
 
 from utils.logger import log
 from src.utils.persistence_manager import PersistenceManager
+from src.risk_manager import RiskManager
+from config.settings import settings
 
 
 class PositionStatus(Enum):
@@ -233,28 +235,26 @@ class PaperTradingSimulator:
                  leverage: int = 1,
                  use_maker_fee: bool = False,
                  persistence_file: str = "data/paper_trade_state.json"):
-        """
-        Initialize paper trading simulator.
-        
-        Args:
-            initial_balance: Starting virtual balance in USD
-            leverage: Leverage multiplier (e.g., 5 for 5x leverage)
-            use_maker_fee: If True, use maker fee (0.04%), else taker (0.06%)
-            persistence_file: Path to save/load state
-        """
+    def __init__(self, 
+                 initial_balance: float = 10000.0,
+                 fee_rate: float = 0.0006,  # 0.06% taker fee
+                 persistence_dir: str = "data/paper"):
+        """Initialize simulator."""
         self.initial_balance = initial_balance
         self.current_balance = initial_balance
-        self.leverage = leverage
-        self.use_maker_fee = use_maker_fee
-        self.fee_rate = self.MAKER_FEE if use_maker_fee else self.TAKER_FEE
-        self.positions: Dict[str, PaperPosition] = {}  # symbol -> position
+        self.fee_rate = fee_rate
+        self.persistence = PersistenceManager(persistence_dir, "paper_trading_state")
+        self.risk_manager = RiskManager()
+        
+        # State
+        self.positions: Dict[str, PaperPosition] = {}
         self.closed_positions: List[PaperPosition] = []
-        self.stats = TradingStats()
         self._position_counter = 0
+        self.stats = TradingStats()
         
         # Ensure data directory exists
         import os
-        data_dir = os.path.dirname(persistence_file)
+        data_dir = os.path.dirname(persistence_dir) # Changed from persistence_file
         if data_dir and not os.path.exists(data_dir):
             os.makedirs(data_dir, exist_ok=True)
             log.info(f"[PAPER] Created data directory: {data_dir}")
@@ -468,28 +468,63 @@ class PaperTradingSimulator:
         
         return True, realized_pnl
     
-    def update_prices(self, prices: Dict[str, float]) -> None:
+    def update_prices(self, prices: Dict[str, float], atrs: Optional[Dict[str, float]] = None) -> None:
         """
         Update current prices for all positions.
-        Also checks and activates break-even stops when triggered.
+        Also checks and activates break-even/trailing stops when triggered.
         
         Args:
             prices: Dict of symbol -> current_price
+            atrs: Dict of symbol -> current ATR (optional, for trailing stops)
         """
         total_unrealized = 0.0
         
         for symbol, position in self.positions.items():
             if symbol in prices:
-                position.update_price(prices[symbol])
+                current_price = prices[symbol]
+                position.update_price(current_price)
                 total_unrealized += position.unrealized_pnl
                 
-                # Check break-even trigger (move SL to entry after 1R profit)
-                if position.check_break_even_trigger():
+                # Use RiskManager for unified logic
+                r_multiple = self.risk_manager.get_r_multiple(
+                    entry_price=position.entry_price,
+                    current_price=current_price,
+                    stop_loss=position.original_stop_loss,
+                    side=position.side
+                )
+
+                # 1. Check break-even trigger (move SL to entry after 1.0R profit)
+                if not position.break_even_activated and r_multiple >= 1.0:
                     old_sl = position.stop_loss
-                    position.move_to_break_even()
-                    log.info(f"[PAPER] 🛡️ BREAK-EVEN ACTIVATED for {symbol}")
-                    log.info(f"         Stop moved: ${old_sl:.2f} → ${position.stop_loss:.2f}")
-                    log.info(f"         Position now risk-free!")
+                    new_sl = self.risk_manager.calculate_break_even_stop(
+                        entry_price=position.entry_price,
+                        side=position.side
+                    )
+                    
+                    if position.side == 'long' and new_sl > position.stop_loss:
+                        position.stop_loss = new_sl
+                        position.break_even_activated = True
+                        log.info(f"[PAPER] 🛡️ BREAK-EVEN ACTIVATED for {symbol}: SL ${old_sl:.2f} → ${new_sl:.2f}")
+                    elif position.side == 'short' and new_sl < position.stop_loss:
+                        position.stop_loss = new_sl
+                        position.break_even_activated = True
+                        log.info(f"[PAPER] 🛡️ BREAK-EVEN ACTIVATED for {symbol}: SL ${old_sl:.2f} → ${new_sl:.2f}")
+
+                # 2. Check trailing stop trigger (after 1.5R)
+                atr = atrs.get(symbol) if atrs else None
+                if r_multiple >= 1.5 and atr is not None:
+                    new_trail_sl = self.risk_manager.calculate_trailing_stop(
+                        entry_price=position.entry_price,
+                        current_price=current_price,
+                        atr=atr,
+                        side=position.side,
+                        multiplier=getattr(settings.enhanced_risk, "atr_stop_multiplier", 2.0)
+                    )
+                    
+                    if position.side == 'long' and new_trail_sl > position.stop_loss:
+                        position.stop_loss = new_trail_sl
+                    elif position.side == 'short' and new_trail_sl < position.stop_loss:
+                        position.stop_loss = new_trail_sl
         
         self.stats.total_unrealized_pnl = total_unrealized
     
