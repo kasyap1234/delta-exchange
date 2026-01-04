@@ -586,8 +586,9 @@ class TechnicalAnalyzer:
         has_conflict = bullish_count > 0 and bearish_count > 0
 
         if has_conflict:
-            # With conflicting signals, require stronger agreement
-            min_agreement = max(min_agreement, int(total_indicators * 0.75))
+            # With conflicting signals, allow entry if 50%+ agree (relaxed from 75%)
+            # This enables mean-reversion/reversal trades when aligned with higher TF trend
+            min_agreement = max(min_agreement, int(total_indicators * 0.50))
 
         # Strong signals require near-unanimous agreement (all or all-1)
         strong_threshold = (
