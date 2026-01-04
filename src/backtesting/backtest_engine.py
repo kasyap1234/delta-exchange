@@ -498,11 +498,12 @@ class BacktestEngine:
             adx=adx,
             rsi=rsi,
             volume_signal=volume_signal,
-            market_regime=market_regime
+            market_regime=market_regime,
+            timestamp=datetime.fromisoformat(bar.datetime) if isinstance(bar.datetime, str) else bar.datetime
         )
         
         if not is_valid:
-            log.debug(f"Backtest: {symbol} entry rejected: {reason}")
+            log.info(f"Backtest: {symbol} {direction} REJECTED: {reason}")
             return
 
         log.info(f"Backtest: {symbol} entry approved: {reason}")
@@ -573,7 +574,7 @@ class BacktestEngine:
             # (In this backtestTrade, stop_loss is mutated, so we might want to store initial_sl)
             # For now, let's assume trade.stop_loss is what we use.
 
-            # Break-Even: After 1.0R profit, move SL to entry
+            # 1. Break-Even: After 1.0R profit, move SL to entry
             if r_multiple >= 1.0 and trade.stop_loss != trade.entry_price:
                 new_sl = self.risk_manager.calculate_break_even_stop(
                     entry_price=trade.entry_price,
@@ -590,7 +591,7 @@ class BacktestEngine:
                         trade.stop_loss = new_sl
                         log.debug(f"Moved SL to Break-Even for {symbol} @ {new_sl:.2f}")
 
-            # Trailing: After 1.5R, trail at ATR distance
+            # 2. Trailing: After 1.5R, trail at ATR distance
             if r_multiple >= 1.5 and atr is not None:
                 new_trail_sl = self.risk_manager.calculate_trailing_stop(
                     entry_price=trade.entry_price,
@@ -670,6 +671,11 @@ class BacktestEngine:
         net_pnl = pnl + hedge_pnl - commission
 
         self.capital += net_pnl
+        
+        # Record result for cooldowns (Whiplash protection)
+        # Use bar time for backtest consistency
+        ts = datetime.fromisoformat(trade.exit_time) if isinstance(trade.exit_time, str) else trade.exit_time
+        self.signal_validator.record_trade_result(symbol, net_pnl, timestamp=ts)
 
         # Move to closed trades
         # Update trade P&L for reporting (optional, but good for stats)

@@ -62,20 +62,19 @@ class DeltaConfig:
 class StrategyAllocationConfig:
     """Capital allocation per strategy tier."""
 
-    # Tier 1: Funding Rate Arbitrage (low risk, passive income)
     funding_arbitrage: float = field(
-        default_factory=lambda: float(os.getenv("ALLOC_FUNDING_ARB", "0.40"))
-    )  # 40% default
+        default_factory=lambda: float(os.getenv("ALLOC_FUNDING_ARB", "0.00"))
+    )  # 0% (Disabled for Delta India)
 
     # Tier 2: Correlated Pair Hedging (medium risk)
     correlated_hedging: float = field(
-        default_factory=lambda: float(os.getenv("ALLOC_HEDGING", "0.40"))
-    )  # 40% default
+        default_factory=lambda: float(os.getenv("ALLOC_HEDGING", "0.60"))
+    )  # 60% default
 
     # Tier 3: Multi-Timeframe Trend Following (higher risk)
     multi_timeframe: float = field(
-        default_factory=lambda: float(os.getenv("ALLOC_MTF", "0.20"))
-    )  # 20% default
+        default_factory=lambda: float(os.getenv("ALLOC_MTF", "0.40"))
+    )  # 40% default
 
     def validate(self) -> bool:
         """Validate allocations sum to ~1.0."""
@@ -215,6 +214,9 @@ class EnhancedRiskConfig:
     break_even_buffer_pct: float = field(
         default_factory=lambda: float(os.getenv("BREAK_EVEN_BUFFER_PCT", "0.001"))
     )  # 0.1% buffer above entry for break-even stop
+    trailing_trigger_r: float = field(
+        default_factory=lambda: float(os.getenv("TRAILING_TRIGGER_R", "1.5"))
+    )  # Start trailing after 1.5R profit
 
 
 @dataclass
@@ -252,9 +254,9 @@ class SignalFilterConfig:
         default_factory=lambda: int(os.getenv("CONSECUTIVE_LOSS_LIMIT", "3"))
     )
 
-    # Cooldown after loss streak (minutes)
+    # Cooldown after loss streak (minutes) - increased for better whiplash protection
     loss_cooldown_minutes: int = field(
-        default_factory=lambda: int(os.getenv("LOSS_COOLDOWN_MINUTES", "30"))
+        default_factory=lambda: int(os.getenv("LOSS_COOLDOWN_MINUTES", "45"))
     )
 
     # Minimum indicator agreement (out of total indicators)
@@ -338,8 +340,8 @@ class TradingConfig:
         default_factory=lambda: float(os.getenv("STOP_LOSS_PCT", "0.025"))
     )  # 2.5% - Tighter for better risk management
     take_profit_pct: float = field(
-        default_factory=lambda: float(os.getenv("TAKE_PROFIT_PCT", "0.0625"))
-    )  # 6.25% - 2.5:1 R:R ratio
+        default_factory=lambda: float(os.getenv("TAKE_PROFIT_PCT", "0.075"))
+    )  # 7.5% - 3:1 R:R ratio
     max_open_positions: int = field(
         default_factory=lambda: int(os.getenv("MAX_OPEN_POSITIONS", "10"))
     )  # Allow room for Arb(3) + Hedge(3) + MTF(3)

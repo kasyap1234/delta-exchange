@@ -162,9 +162,13 @@ class CorrelatedHedgingStrategy(BaseStrategy):
                 symbols_in_use.add(pos.product_symbol)
         
         for symbol in self.trading_pairs:
-            # Skip if already have position
+            # Skip if already have position AND it's not being closed this cycle
+            # This allows for instant flipping if an exit signal was generated
             if symbol in symbols_in_use:
-                continue
+                # Check if we generated an exit signal for this symbol
+                being_closed = any(s.symbol == symbol and s.direction in [SignalDirection.CLOSE_LONG, SignalDirection.CLOSE_SHORT] for s in signals)
+                if not being_closed:
+                    continue
             
             # Analyze market
             ta_result = self._analyze_market(symbol)
@@ -518,6 +522,18 @@ class CorrelatedHedgingStrategy(BaseStrategy):
                 elif current_price <= tp_price:
                     should_exit = True
                     exit_reason = f"Take-profit hit ({pnl_pct:.1f}%)"
+            
+            # 3. Check for signal reversal (Trend Flip)
+            # This allows the bot to exit a long if a short signal is generated
+            if not should_exit:
+                ta_result = self._analyze_market(symbol)
+                if ta_result:
+                    if side == 'long' and self.analyzer.should_enter_short(ta_result):
+                        should_exit = True
+                        exit_reason = f"Signal reversal detected (Long -> Short flip)"
+                    elif side == 'short' and self.analyzer.should_enter_long(ta_result):
+                        should_exit = True
+                        exit_reason = f"Signal reversal detected (Short -> Long flip)"
             
             if should_exit:
                 log.info(f"[EXIT TRIGGERED] {symbol}: {exit_reason}")

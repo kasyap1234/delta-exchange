@@ -95,9 +95,8 @@ class StrategyManager:
 
     # Default capital allocation
     DEFAULT_ALLOCATION = {
-        StrategyType.FUNDING_ARBITRAGE: 0.40,
-        StrategyType.CORRELATED_HEDGING: 0.40,
-        StrategyType.MULTI_TIMEFRAME: 0.20,
+        StrategyType.CORRELATED_HEDGING: 0.60,
+        StrategyType.MULTI_TIMEFRAME: 0.40,
     }
 
     # Daily loss limit (default 3%)
@@ -434,7 +433,7 @@ class StrategyManager:
         
         Logic ported from BacktestEngine (Sniper Mode):
         1. Break-Even: If Profit > 1.0R, move SL to Entry.
-        2. Trailing Stop: If Profit > 1.5R, trail SL by 2x ATR (or 2.5% fallback).
+        2. Trailing Stop: If Profit > 1.5R, trail SL by 2x ATR.
         """
         if self.dry_run:
             return
@@ -489,15 +488,17 @@ class StrategyManager:
                     side="long" if size > 0 else "short"
                 )
                 
-                # 1. Break-Even Check (Profit > 1.0R)
-                if r_multiple >= 1.0:
+                # 1. Break-Even Check
+                be_trigger = getattr(settings.enhanced_risk, "break_even_trigger_r", 1.0)
+                if r_multiple >= be_trigger:
                     target_be_sl = self.risk_manager.calculate_break_even_stop(
                         entry_price=entry_price,
                         side="long" if size > 0 else "short"
                     )
                     
-                    # 2. Trailing Stop Check (Profit > 1.5R)
-                    if r_multiple >= 1.5:
+                    # 2. Trailing Stop Check
+                    trail_trigger = getattr(settings.enhanced_risk, "trailing_trigger_r", 1.5)
+                    if r_multiple >= trail_trigger:
                         # Fetch candles for ATR
                         try:
                             candles = self.client.get_candles(symbol=symbol, resolution='15m')
@@ -521,7 +522,7 @@ class StrategyManager:
                                 else: # SHORT
                                     final_sl = min(target_be_sl, new_trail_sl)
                                 
-                                log.info(f"Trailing SL logic for {symbol}: 1.5R reached. New SL: {final_sl:.2f}")
+                                log.info(f"Trailing SL logic for {symbol}: {trail_trigger}R reached. New SL: {final_sl:.2f}")
                                 self.client.update_bracket_order(
                                     product_id=position.product_id,
                                     stop_loss_price=final_sl
@@ -530,8 +531,8 @@ class StrategyManager:
                         except Exception as e:
                             log.warning(f"Failed to calculate trailing stop for {symbol}: {e}")
 
-                    # Just Break-Even (1.0R to 1.5R, or if trailing failed)
-                    log.info(f"Break-Even logic for {symbol}: 1.0R reached. Moving SL to Entry.")
+                    # Just Break-Even (or if trailing failed)
+                    log.info(f"Break-Even logic for {symbol}: {be_trigger}R reached. Moving SL to Entry.")
                     self.client.update_bracket_order(
                         product_id=position.product_id,
                         stop_loss_price=target_be_sl

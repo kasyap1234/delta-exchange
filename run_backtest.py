@@ -116,14 +116,12 @@ def run_multi_symbol_backtest(
     for symbol, data in data_dict.items():
         print(f"   ✅ {symbol}: {len(data.bars)} bars")
 
-    # Run multi-strategy backtest
-    print(f"\n⚙️  Running multi-strategy backtest...")
     multi_bt = MultiStrategyBacktest(
         initial_capital=capital,
         allocation={
-            "funding_arbitrage": 0.40,
-            "correlated_hedging": 0.40,
-            "multi_timeframe": 0.20,
+            "funding_arbitrage": settings.strategy_allocation.funding_arbitrage,
+            "correlated_hedging": settings.strategy_allocation.correlated_hedging,
+            "multi_timeframe": settings.strategy_allocation.multi_timeframe,
         },
     )
 

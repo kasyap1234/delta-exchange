@@ -202,9 +202,10 @@ class TechnicalAnalyzer:
                 adx = self.calculate_adx(high, low, close)
                 if adx > 30:
                     confidence = min(1.0, base_confidence * 1.2) # Strong Trend boost
-                elif adx < 20:
-                    confidence = base_confidence * 0.8 # Choppy Market penalty
+                if adx > 30:
+                    confidence = min(1.0, base_confidence * 1.2) # Strong Trend boost
                 else:
+                    # No penalty for low ADX - let UnifiedSignalValidator handle minimum thresholds
                     confidence = base_confidence
             except Exception:
                 confidence = base_confidence
@@ -643,8 +644,8 @@ class TechnicalAnalyzer:
         if result.combined_signal not in [Signal.BUY, Signal.STRONG_BUY]:
             return False
 
-        # Require minimum 40% confidence (relaxed further to debug missing signals)
-        min_confidence = 0.50 if self.strict_mode else 0.40
+        # Require minimum 50% confidence
+        min_confidence = 0.55 if self.strict_mode else 0.50
         return result.confidence >= min_confidence
 
     def should_enter_short(self, result: TechnicalAnalysisResult) -> bool:
@@ -657,8 +658,8 @@ class TechnicalAnalyzer:
             log.debug(f"should_enter_short: FAIL - signal is {result.combined_signal.value}, not SELL/STRONG_SELL")
             return False
 
-        # Require minimum 40% confidence (relaxed to capture early reversals)
-        min_confidence = 0.50 if self.strict_mode else 0.40
+        # Require minimum 50% confidence
+        min_confidence = 0.55 if self.strict_mode else 0.50
         if result.confidence < min_confidence:
             log.debug(f"should_enter_short: FAIL - confidence {result.confidence:.2f} < {min_confidence}")
             return False

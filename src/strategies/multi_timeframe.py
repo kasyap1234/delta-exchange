@@ -177,9 +177,11 @@ class MultiTimeframeStrategy(BaseStrategy):
         capital_per_trade = available_capital / 2  # Allow 2 positions per strategy
         
         for symbol in self.trading_pairs:
-            # Skip if already have position
+            # Skip if already have position AND it's not being closed this cycle
             if symbol in self._mtf_positions:
-                continue
+                being_closed = any(s.symbol == symbol and s.direction in [SignalDirection.CLOSE_LONG, SignalDirection.CLOSE_SHORT] for s in signals)
+                if not being_closed:
+                    continue
             
             # Perform MTF analysis
             mtf_result = self.mtf_analyzer.analyze(symbol)
@@ -385,9 +387,29 @@ class MultiTimeframeStrategy(BaseStrategy):
                     except Exception as e:
                         log.error(f"Failed to update bracket for {symbol}: {e}")
             
+                except Exception as e:
+                    log.error(f"Error managing position for {symbol}: {e}")
+            
+            # 2. Check for signal reversal (Trend Flip)
+            try:
+                mtf_result = self.mtf_analyzer.analyze(symbol)
+                if mtf_result.get('should_trade'):
+                    new_signal = mtf_result.get('entry_signal') # 'buy' or 'sell'
+                    if (pos.side == 'long' and new_signal == 'sell') or \
+                       (pos.side == 'short' and new_signal == 'buy'):
+                        log.info(f"MTF: {symbol} reversal signal detected: {pos.side} -> {new_signal}")
+                        signals.append(StrategySignal(
+                            strategy_type=self.strategy_type,
+                            symbol=symbol,
+                            direction=SignalDirection.CLOSE_LONG if pos.side == 'long' else SignalDirection.CLOSE_SHORT,
+                            confidence=0.9,
+                            entry_price=current_price,
+                            position_size=pos.size,
+                            reason=f"MTF Trend Reversal detected"
+                        ))
             except Exception as e:
-                log.error(f"Error managing position for {symbol}: {e}")
-                
+                log.error(f"Error checking reversal for {symbol}: {e}")
+        
         return signals
 
     def _check_profit_ladder(self, pos: MTFPosition, 

@@ -431,7 +431,7 @@ Configuration:
     parser.add_argument(
         '--interval',
         type=int,
-        default=300,
+        default=120,
         help='Interval between trading cycles in seconds (default: 300)'
     )
     

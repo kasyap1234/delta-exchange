@@ -195,19 +195,30 @@ class PerformanceAnalyzer:
         if not returns or len(returns) < 2:
             return 0.0
 
+        # Calculate average return and standard deviation
         avg_return = float(np.mean(returns))
         std_return = float(np.std(returns))
 
         if std_return == 0:
             return 0.0
 
-        # Annualize
-        periods_per_year = 365 / days if days > 0 else 365
+        # Annualize based on period frequency
+        # If days > 0, we can estimate periods per year effectively
+        # For typical crypto backtests (e.g. 15m candles = 96 per day)
+        # Total periods / Total days * 365
+        total_periods = len(returns)
+        periods_per_year = (total_periods / days * 365) if days > 0 else 365
+
+        # Annualized return = avg_return * periods_per_year
+        # Annualized std = std_return * sqrt(periods_per_year)
         annualized_return = avg_return * periods_per_year
         annualized_std = std_return * np.sqrt(periods_per_year)
 
-        sharpe = (annualized_return - self.risk_free_rate) / annualized_std
-
+        # Use 0% risk free rate for crypto context (or very low) to avoid skewing
+        # negative on profitable strategies
+        risk_free = getattr(self, "risk_free_rate", 0.0)
+        
+        sharpe = (annualized_return - risk_free) / annualized_std
         return float(sharpe)
 
     def _calculate_sortino(self, returns: List[float], days: int) -> float:
@@ -222,18 +233,22 @@ class PerformanceAnalyzer:
         if not downside_returns:
             return 0.0
 
-        downside_std = float(np.std(downside_returns))
+        std_downside = float(np.std(downside_returns))
 
-        if downside_std == 0:
+        if std_downside == 0:
             return 0.0
 
-        # Annualize
-        periods_per_year = 365 / days if days > 0 else 365
+        # Annualize based on period frequency (same rationale as Sharpe)
+        total_periods = len(returns)
+        periods_per_year = (total_periods / days * 365) if days > 0 else 365
+        
         annualized_return = avg_return * periods_per_year
-        annualized_downside_std = downside_std * np.sqrt(periods_per_year)
+        annualized_downside_std = std_downside * np.sqrt(periods_per_year)
 
-        sortino = (annualized_return - self.risk_free_rate) / annualized_downside_std
+        # Use 0% risk free for crypto
+        risk_free = getattr(self, "risk_free_rate", 0.0)
 
+        sortino = (annualized_return - risk_free) / annualized_downside_std
         return float(sortino)
 
     def _calculate_calmar(

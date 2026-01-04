@@ -3,6 +3,7 @@ Unified Signal Validation Module.
 Ensures consistency between backtesting and live trading logic.
 """
 
+from datetime import datetime
 from enum import Enum
 from typing import Dict, List, Optional, Tuple, Any
 import numpy as np
@@ -21,6 +22,7 @@ class ValidationResult(Enum):
     REJECTED_CHOPPY_MARKET = "rejected_choppy_market"
     REJECTED_LOW_VOLUME = "rejected_low_volume"
     REJECTED_REGIME_CONFLICT = "rejected_regime_conflict"
+    REJECTED_COOLDOWN = "rejected_cooldown"
 
 class UnifiedSignalValidator:
     """
@@ -29,9 +31,13 @@ class UnifiedSignalValidator:
     
     def __init__(self):
         # Configuration from settings or sensible defaults
-        # Reduced from 0.55 to 0.45 to allow 2-indicator agreement (50% confidence)
-        self.min_confidence = getattr(settings.trading, "min_confidence", 0.45)
-        self.min_agreement = getattr(settings.trading, "min_signal_agreement", 2)
+        # Balanced: 0.50 confidence for diverse signal capture
+        self.min_confidence = getattr(settings.trading, "min_confidence", 0.50)
+        self.min_agreement = getattr(settings.trading, "min_signal_agreement", 1)
+        
+        # State for whiplash protection
+        self.last_loss_time: Dict[str, datetime] = {}
+        self.consecutive_losses: Dict[str, int] = {}
         self.min_adx = getattr(settings.signal_filter, "min_adx_for_trend", 15.0)
         self.rsi_overbought = getattr(settings.signal_filter, "rsi_overbought", 65)
         self.rsi_oversold = getattr(settings.signal_filter, "rsi_oversold", 35)
@@ -45,7 +51,8 @@ class UnifiedSignalValidator:
         adx: float = 0.0,
         rsi: Optional[float] = None,
         volume_signal: str = "neutral",
-        market_regime: str = "trending"
+        market_regime: str = "trending",
+        timestamp: Optional[datetime] = None
     ) -> Tuple[bool, ValidationResult, str]:
         """
         Validate if an entry signal should be taken.
@@ -57,9 +64,11 @@ class UnifiedSignalValidator:
             return False, ValidationResult.REJECTED_LOW_CONFIDENCE, f"Confidence {ta_result.confidence:.2f} < {self.min_confidence}"
 
         # 2. Indicator Agreement Filter
-        # signal_strength is typically the count of agreeing indicators
-        if hasattr(ta_result, 'signal_strength') and ta_result.signal_strength < self.min_agreement:
-            return False, ValidationResult.REJECTED_WEAK_AGREEMENT, f"Agreement {ta_result.signal_strength} < {self.min_agreement}"
+        # signal_strength can be negative for SELL signals, so use absolute value
+        if hasattr(ta_result, 'signal_strength'):
+            agreement = abs(ta_result.signal_strength)
+            if agreement < self.min_agreement:
+                return False, ValidationResult.REJECTED_WEAK_AGREEMENT, f"Agreement {agreement} < {self.min_agreement}"
 
         # 3. ADX Trend Filter
         if adx > 0 and adx < self.min_adx:
@@ -91,10 +100,9 @@ class UnifiedSignalValidator:
         # 6. Market Regime Filter
         # Avoid trading in choppy markets for trend-following strategies
         if market_regime in ["choppy", "sideways", "ranging"] and adx < 25:
-             # Relaxed: Allow entry in ranging markets IF confidence is high (Mean Reversion)
-             # If confidence is high (e.g. >= 0.75), we assume it's a strong reversal signal
-             if hasattr(ta_result, 'confidence') and ta_result.confidence >= 0.75:
-                 log.debug(f"Allowing trade in {market_regime} regime due to high confidence {ta_result.confidence:.2f}")
+             # Threshold raised to 0.55 for balanced quality
+             if hasattr(ta_result, 'confidence') and ta_result.confidence >= 0.55:
+                 log.debug(f"Allowing trade in {market_regime} regime due to decent confidence {ta_result.confidence:.2f}")
              else:
                  return False, ValidationResult.REJECTED_CHOPPY_MARKET, f"Market regime is {market_regime} with weak ADX {adx:.1f} and low confidence"
 
@@ -105,4 +113,27 @@ class UnifiedSignalValidator:
         elif volume_signal == "weak":
              return False, ValidationResult.REJECTED_LOW_VOLUME, f"Volume confirmation failed (signal: {volume_signal})"
 
+        # Filter out very choppy markets (ADX < 15)
+        if adx < 15 and volume_signal == "neutral":
+            return False, ValidationResult.REJECTED_WEAK_TREND, f"Very weak ADX {adx:.1f} - market too choppy"
+
+        # 9. Loss Cooldown (Whiplash Protection)
+        cooldown_mins = getattr(settings.signal_filter, "loss_cooldown_minutes", 30)
+        check_time = timestamp or datetime.now()
+        
+        if symbol in self.last_loss_time:
+            time_since_loss = (check_time - self.last_loss_time[symbol]).total_seconds() / 60
+            if time_since_loss < cooldown_mins:
+                return False, ValidationResult.REJECTED_COOLDOWN, f"In cooldown ({time_since_loss:.1f}/{cooldown_mins}m)"
+
         return True, ValidationResult.PASSED, "Signal passed all unified filters"
+
+    def record_trade_result(self, symbol: str, pnl: float, timestamp: Optional[datetime] = None):
+        """Record trade result to handle cooldowns."""
+        if pnl < 0:
+            self.last_loss_time[symbol] = timestamp or datetime.now()
+            self.consecutive_losses[symbol] = self.consecutive_losses.get(symbol, 0) + 1
+        else:
+            self.consecutive_losses[symbol] = 0
+            if symbol in self.last_loss_time:
+                del self.last_loss_time[symbol]
