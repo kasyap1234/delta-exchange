@@ -64,19 +64,15 @@ class StrategyAllocationConfig:
 
     funding_arbitrage: float = field(
         default_factory=lambda: float(os.getenv("ALLOC_FUNDING_ARB", "0.00"))
-    )  # 0% (Disabled for Delta India - No Spot)
-
-    # Tier 2: Correlated Pair Hedging (medium risk)
+    )
     correlated_hedging: float = field(
-        default_factory=lambda: float(os.getenv("ALLOC_CORR_HEDGE", "0.60"))
-    )  # 60% default
-
-    # Tier 3: Multi-Timeframe Trend Following (higher risk)
+        default_factory=lambda: float(os.getenv("ALLOC_CORR_HEDGE", "0.00"))
+    )
     multi_timeframe: float = field(
-        default_factory=lambda: float(os.getenv("ALLOC_MTF", "0.40"))
-    )  # 40% default
+        default_factory=lambda: float(os.getenv("ALLOC_MTF", "0.00"))
+    )
     pairs_trading: float = field(
-        default_factory=lambda: float(os.getenv("ALLOC_PAIRS_TRADING", "0.00"))
+        default_factory=lambda: float(os.getenv("ALLOC_PAIRS_TRADING", "1.00"))
     )
 
     def validate(self) -> bool:
