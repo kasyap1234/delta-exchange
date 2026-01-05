@@ -23,7 +23,39 @@ from src.strategies.pairs_trading import PairsTradingStrategy
 # Funding Arbitrage removed as per India region constraints
 
 class AsyncStrategyManager:
-# ...
+    """
+    Event-driven strategy manager.
+    
+    Responsibilities:
+    1. Initialize and manage strategy instances
+    2. Process real-time market data (ticks)
+    3. Route signals to execution
+    4. Enforce global risk limits (Kill Switch)
+    """
+    
+    def __init__(self, api_key: str = None, api_secret: str = None, region: str = "india", dry_run: bool = False):
+        self.dry_run = dry_run
+        
+        # Initialize Clients
+        self.rest_client = DeltaExchangeClient(api_key=api_key, api_secret=api_secret, use_hybrid_mode=True)
+        self.ws_client = DeltaWebSocketClient(api_key=api_key, api_secret=api_secret, region=region)
+        
+        # Risk & Validation
+        self.risk_manager = RiskManager()
+        self.signal_validator = UnifiedSignalValidator()
+        
+        # Strategies
+        self.strategies: List[BaseStrategy] = []
+        self._initialize_strategies()
+        
+        # State
+        self.positions: Dict[str, Position] = {}
+        self.orders: Dict[str, Order] = {}
+        self.last_tick_time: Dict[str, float] = {}
+        self.is_running = False
+        
+        log.info(f"AsyncStrategyManager initialized (Dry Run: {dry_run})")
+
     def _initialize_strategies(self):
         """Initialize active strategy modules."""
         self.strategies = []
