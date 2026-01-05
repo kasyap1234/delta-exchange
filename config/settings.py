@@ -75,10 +75,13 @@ class StrategyAllocationConfig:
     multi_timeframe: float = field(
         default_factory=lambda: float(os.getenv("ALLOC_MTF", "0.40"))
     )  # 40% default
+    pairs_trading: float = field(
+        default_factory=lambda: float(os.getenv("ALLOC_PAIRS_TRADING", "0.00"))
+    )
 
     def validate(self) -> bool:
         """Validate allocations sum to ~1.0."""
-        total = self.funding_arbitrage + self.correlated_hedging + self.multi_timeframe
+        total = self.funding_arbitrage + self.correlated_hedging + self.multi_timeframe + self.pairs_trading
         if abs(total - 1.0) > 0.01:
             log.warning(f"Strategy allocations sum to {total:.2f}, expected 1.0")
             return False

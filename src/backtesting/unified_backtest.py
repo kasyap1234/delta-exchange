@@ -12,6 +12,7 @@ from src.backtesting.backtest_data_provider import BacktestDataProvider
 from src.backtesting.backtest_client import BacktestDeltaClient, TradeRecord
 from src.strategies.correlated_hedging import CorrelatedHedgingStrategy
 from src.strategies.multi_timeframe import MultiTimeframeStrategy
+from src.strategies.pairs_trading import PairsTradingStrategy
 from src.strategies.base_strategy import StrategySignal, SignalDirection
 from config.settings import settings
 from utils.logger import log
@@ -112,6 +113,10 @@ class UnifiedBacktestRunner:
                 client=mock_client,
                 capital_allocation=1.0,
                 dry_run=False
+            )
+        elif strategy_type == "pairs_trading":
+            strategy = PairsTradingStrategy(
+                client=mock_client
             )
         else:
             raise ValueError(f"Unknown strategy: {strategy_type}")

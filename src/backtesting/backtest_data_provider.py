@@ -53,12 +53,17 @@ class BacktestDataProvider:
         self.current_idx = 0
         self.warmup_bars = 50  # Minimum bars needed for indicators
         
-        # Pre-calculate total bars (assume all symbols have same length)
-        first_symbol = list(data_dict.keys())[0] if data_dict else None
-        self.total_bars = len(data_dict[first_symbol].bars) if first_symbol else 0
+        # Pre-calculate total bars (use minimum to ensure sync)
+        if not data_dict:
+            self.total_bars = 0
+            return
+            
+        # Find minimum length to prevent out of bounds
+        min_bars = min(len(d.bars) for d in data_dict.values())
+        self.total_bars = min_bars
         
         log.info(f"BacktestDataProvider initialized with {len(data_dict)} symbols, "
-                 f"{self.total_bars} bars each")
+                 f"{self.total_bars} bars each (sync length)")
     
     def set_current_bar(self, idx: int) -> None:
         """Set the current bar index for all data access."""
