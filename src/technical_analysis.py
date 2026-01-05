@@ -65,6 +65,7 @@ class TechnicalAnalysisResult:
     combined_signal: Signal
     signal_strength: int  # Number of indicators agreeing
     confidence: float  # Percentage of indicators agreeing
+    choppiness: float = 50.0  # Choppiness Index value
 
     def __str__(self):
         return (
@@ -159,25 +160,25 @@ class TechnicalAnalyzer:
 
         # Calculate each indicator
         try:
-            rsi_result = self._calculate_rsi(close)
+            rsi_result = self.calculate_rsi(close)
             indicators.append(rsi_result)
         except Exception as e:
             log.error(f"RSI calculation failed: {e}")
 
         try:
-            macd_result = self._calculate_macd(close)
+            macd_result = self.calculate_macd(close)
             indicators.append(macd_result)
         except Exception as e:
             log.error(f"MACD calculation failed: {e}")
 
         try:
-            bb_result = self._calculate_bollinger_bands(close)
+            bb_result = self.calculate_bollinger_bands(close)
             indicators.append(bb_result)
         except Exception as e:
             log.error(f"Bollinger Bands calculation failed: {e}")
 
         try:
-            ema_result = self._calculate_ema_crossover(close)
+            ema_result = self.calculate_ema_crossover(close)
             indicators.append(ema_result)
         except Exception as e:
             log.error(f"EMA calculation failed: {e}")
@@ -186,6 +187,8 @@ class TechnicalAnalyzer:
         combined_signal, signal_strength = self._generate_combined_signal(indicators)
 
         # Calculate base confidence as the max of bullish or bearish count / total
+        adx = 20.0 # Default
+        chop = 50.0 # Default
         if indicators:
             bullish_count = sum(
                 1 for ind in indicators if ind.signal == IndicatorSignal.BULLISH
@@ -196,20 +199,23 @@ class TechnicalAnalyzer:
             max_directional = max(bullish_count, bearish_count)
             base_confidence = max_directional / len(indicators)
             
-            # Profit Optimization: ADX Trend Strength Multiplier
-            # Strong trends (ADX > 25) increase confidence, choppy markets (ADX < 20) decrease it
+            # Profit Optimization: ADX Trend & CHOP Filter Multipliers
             try:
                 adx = self.calculate_adx(high, low, close)
-                if adx > 30:
-                    confidence = min(1.0, base_confidence * 1.2) # Strong Trend boost
-                if adx > 30:
-                    confidence = min(1.0, base_confidence * 1.2) # Strong Trend boost
-                else:
-                    # No penalty for low ADX - let UnifiedSignalValidator handle minimum thresholds
-                    confidence = base_confidence
-            except Exception:
+                chop = self.calculate_choppiness_index(high, low, close)
+                
+                # Boost confidence if trending (CHOP < 40 and ADX > 25)
+                # Penalize if choppy (CHOP > 60)
+                confidence = base_confidence
+                if chop < 40 and adx > 25:
+                    confidence = min(1.0, base_confidence * 1.1)
+                elif chop > 60:
+                    confidence = base_confidence * 0.8
+            except Exception as e:
+                log.debug(f"Regime detection failed in TA: {e}")
                 confidence = base_confidence
         else:
+            bullish_count = bearish_count = 0
             confidence = 0.0
 
         result = TechnicalAnalysisResult(
@@ -219,6 +225,7 @@ class TechnicalAnalyzer:
             combined_signal=combined_signal,
             signal_strength=signal_strength,
             confidence=confidence,
+            choppiness=chop
         )
 
         if result.combined_signal != Signal.HOLD:
@@ -228,7 +235,7 @@ class TechnicalAnalyzer:
 
         return result
 
-    def _calculate_rsi(self, close: np.ndarray) -> IndicatorResult:
+    def calculate_rsi(self, close: np.ndarray) -> IndicatorResult:
         """
         Calculate Relative Strength Index with momentum confirmation.
 
@@ -291,58 +298,51 @@ class TechnicalAnalyzer:
             name="RSI", signal=signal, value=current_rsi, description=description
         )
 
-    # --- PUBLIC API FOR UNIFIED VALIDATOR ---
-    
-    def calculate_rsi(self, close: np.ndarray) -> float:
-        """Public wrapper for RSI value."""
-        if len(close) < 14: return 50.0
-        res = self._calculate_rsi(close)
-        return float(res.value)
-
-    def calculate_adx(self, high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int = 14) -> float:
-        """Calculate ADX trend strength."""
-        if len(close) < period * 2: return 0.0
+    def calculate_choppiness_index(
+        self, high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int = 14
+    ) -> float:
+        """
+        Calculate Choppiness Index (CHOP).
         
-        if TALIB_AVAILABLE:
-            adx = talib.ADX(high, low, close, timeperiod=period)
-            return float(adx[-1]) if not np.isnan(adx[-1]) else 0.0
-        else:
-            # Simple fallback ADX
-            return 20.0 # Placeholder for fallback if needed
-
-    def calculate_volume_signal(self, volume: np.ndarray, close: np.ndarray) -> IndicatorResult:
-        """Calculate volume confirmation signal."""
-        if len(volume) < 20:
-            return IndicatorResult("Volume", IndicatorSignal.NEUTRAL, 0.0, "Insufficient data")
+        CHOP < 38.2: Trending market (good for trend-following)
+        CHOP > 61.8: Choppy market (good for mean-reversion)
+        
+        Formula: 100 * LOG10( SUM(ATR(1), n) / (MaxHigh(n) - MinLow(n)) ) / LOG10(n)
+        """
+        if len(close) < period + 1:
+            return 50.0 # Neutral fallback
             
-        avg_volume = np.mean(volume[-20:-1])
-        current_volume = volume[-1]
-        
-        if current_volume > avg_volume * 1.5:
-            return IndicatorResult("Volume", IndicatorSignal.BULLISH, current_volume/avg_volume, "High relative volume")
-        elif current_volume < avg_volume * 0.5:
-            return IndicatorResult("Volume", IndicatorSignal.BEARISH, current_volume/avg_volume, "Low relative volume")
+        # ATR(1) is basically High - Low
+        tr = np.zeros(len(close))
+        for i in range(1, len(close)):
+            hl = high[i] - low[i]
+            hc = abs(high[i] - close[i - 1])
+            lc = abs(low[i] - close[i - 1])
+            tr[i] = max(hl, hc, lc)
             
-        return IndicatorResult("Volume", IndicatorSignal.NEUTRAL, current_volume/avg_volume, "Normal volume")
-
-    def is_trending(self, high: np.ndarray, low: np.ndarray, close: np.ndarray) -> Tuple[bool, float]:
-        """Determine if market is trending based on ADX."""
-        adx = self.calculate_adx(high, low, close)
-        return adx > 25, adx
-
-    def calculate_atr(self, high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int = 14) -> float:
-        """Calculate Average True Range."""
-        if len(close) < period + 1: return 0.0
+        # Sum of TR over the period
+        tr_sum = np.zeros(len(close))
+        for i in range(period, len(close)):
+            tr_sum[i] = np.sum(tr[i-period+1 : i+1])
+            
+        # Max high and min low over the period
+        max_high = np.zeros(len(close))
+        min_low = np.zeros(len(close))
+        for i in range(period, len(close)):
+            max_high[i] = np.max(high[i-period+1 : i+1])
+            min_low[i] = np.min(low[i-period+1 : i+1])
+            
+        range_high_low = max_high - min_low
         
-        if TALIB_AVAILABLE:
-            atr = talib.ATR(high, low, close, timeperiod=period)
-            return float(atr[-1]) if not np.isnan(atr[-1]) else 0.0
-        else:
-            # Fallback ATR
-            tr = np.maximum(high[1:] - low[1:], 
-                            np.maximum(abs(high[1:] - close[:-1]), 
-                                       abs(low[1:] - close[:-1])))
-            return float(np.mean(tr[-period:]))
+        # Calculate CHOP
+        chop = np.zeros(len(close))
+        for i in range(period, len(close)):
+            if range_high_low[i] > 0:
+                chop[i] = 100 * np.log10(tr_sum[i] / range_high_low[i]) / np.log10(period)
+            else:
+                chop[i] = 50.0
+                
+        return float(chop[-1])
 
     def _fallback_rsi(self, close: np.ndarray, period: int) -> np.ndarray:
         """Fallback RSI calculation without TA-Lib."""
@@ -370,7 +370,7 @@ class TechnicalAnalyzer:
 
         return rsi
 
-    def _calculate_macd(self, close: np.ndarray) -> IndicatorResult:
+    def calculate_macd(self, close: np.ndarray) -> IndicatorResult:
         """
         Calculate MACD (Moving Average Convergence Divergence).
 
@@ -432,7 +432,7 @@ class TechnicalAnalyzer:
         hist = macd - signal
         return macd, signal, hist
 
-    def _calculate_bollinger_bands(self, close: np.ndarray) -> IndicatorResult:
+    def calculate_bollinger_bands(self, close: np.ndarray) -> IndicatorResult:
         """
         Calculate Bollinger Bands.
 
@@ -500,7 +500,7 @@ class TechnicalAnalyzer:
 
         return upper, middle, lower
 
-    def _calculate_ema_crossover(self, close: np.ndarray) -> IndicatorResult:
+    def calculate_ema_crossover(self, close: np.ndarray) -> IndicatorResult:
         """
         Calculate EMA crossover signal.
 

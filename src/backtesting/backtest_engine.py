@@ -523,6 +523,7 @@ class BacktestEngine:
             side="buy" if trade_dir == TradeDirection.LONG else "sell",
             entry_price=entry_price,
             available_balance=self.capital,
+            performance_data={"is_backtest": True}  # Skip INR conversion in backtest
         )
 
         # Apply leverage
@@ -877,7 +878,16 @@ class MultiStrategyBacktest:
 
         # Tier 1: Funding Arbitrage (simulated - use historical funding rates)
         tier1_capital = self.initial_capital * self.allocation["funding_arbitrage"]
-        tier1_result = self._simulate_funding_arbitrage(tier1_capital, 30)  # 30 days
+        
+        # Calculate days from data if possible, else default to 30
+        sim_days = 30
+        if data_dict:
+            first_data = next(iter(data_dict.values()))
+            if hasattr(first_data, 'bars') and len(first_data.bars) > 0:
+                # 15m bars: 96 per day
+                sim_days = max(1, len(first_data.bars) // 96)
+        
+        tier1_result = self._simulate_funding_arbitrage(tier1_capital, sim_days)
         results["funding_arbitrage"] = tier1_result
 
         # Calculate combined results
@@ -901,7 +911,7 @@ class MultiStrategyBacktest:
             "initial_capital": capital,
             "final_capital": capital + total_return,
             "total_pnl": total_return,
-            "total_pnl_pct": (total_return / capital) * 100,
+            "total_pnl_pct": (total_return / capital * 100) if capital > 0 else 0.0,
             "estimated_apy": daily_return * 365 * 100,
             "note": "Simulated based on historical average funding rates",
         }

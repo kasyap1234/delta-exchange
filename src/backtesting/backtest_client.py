@@ -33,10 +33,11 @@ class SimulatedPosition:
     def to_position(self) -> Position:
         """Convert to Position object for strategy compatibility."""
         return Position(
+            product_id=0,  # Not tracked in simulation
             product_symbol=self.product_symbol,
             size=self.size,
             entry_price=self.entry_price,
-            margin=self.margin,
+            mark_price=self.entry_price,  # Use entry as approximation
             realized_pnl=self.realized_pnl,
             unrealized_pnl=self.unrealized_pnl
         )
@@ -113,7 +114,8 @@ class BacktestDeltaClient:
         """
         self.data_provider = data_provider
         self.initial_capital = initial_capital
-        self.capital = initial_capital
+        self.capital = initial_capital  # This is available balance
+        self.wallet_balance = initial_capital  # This is total realized balance
         self.leverage = leverage
         self.commission_pct = commission_pct
         self.slippage_pct = slippage_pct
@@ -139,16 +141,18 @@ class BacktestDeltaClient:
         self, 
         symbol: str, 
         resolution: str = '15m',
-        limit: int = 100
+        start: Optional[int] = None,
+        end: Optional[int] = None
     ) -> List[Candle]:
         """
         Get historical candles up to current bar.
         
         Matches DeltaExchangeClient.get_candles() interface.
+        Note: start/end are ignored in backtest - we use data_provider's current bar.
         """
         if resolution in ['4h', '1h', '1d']:
             return self.data_provider.get_higher_tf_candles(symbol, resolution)
-        return self.data_provider.get_candles_up_to(symbol, limit)
+        return self.data_provider.get_candles_up_to(symbol)
     
     def get_ticker(self, symbol: str) -> Dict[str, Any]:
         """
@@ -179,6 +183,19 @@ class BacktestDeltaClient:
             pos.update_unrealized_pnl(current_price)
         
         return [pos.to_position() for pos in self.positions.values() if pos.size != 0]
+    
+    def get_wallet_balance(self) -> Dict[str, Any]:
+        """Get wallet balance for protocol compliance."""
+        used_margin = sum(p.margin for p in self.positions.values())
+        return {
+            'available_balance': self.capital,
+            'balance': self.wallet_balance,
+            'unrealized_pnl': sum(p.unrealized_pnl for p in self.positions.values())
+        }
+    
+    def cancel_order(self, order_id: int) -> bool:
+        """Cancel an order (no-op in backtest since orders fill instantly)."""
+        return True
     
     def place_order(
         self,
@@ -219,7 +236,7 @@ class BacktestDeltaClient:
         # Check if we have enough capital
         margin_required = position_value / self.leverage
         if margin_required + commission > self.capital:
-            log.warning(f"Insufficient capital for order: need ${margin_required:.2f}, have ${self.capital:.2f}")
+            log.info(f"Insufficient capital: need ${margin_required:.2f}, have ${self.capital:.2f} (Size: {size}, Price: {fill_price:.2f})")
             return {'success': False, 'error': 'Insufficient capital'}
         
         # Execute the order
@@ -298,7 +315,12 @@ class BacktestDeltaClient:
                 else:
                     pnl = (pos.entry_price - fill_price) * min(size, abs(pos.size))
                 
-                self.capital += pnl
+                # Return prorated margin and add P&L
+                ratio = min(size, abs(pos.size)) / abs(pos.size)
+                returned_margin = pos.margin * ratio
+                self.capital += returned_margin + pnl
+                self.wallet_balance += pnl
+                pos.margin -= returned_margin
                 
                 # Record the trade
                 trade = TradeRecord(
@@ -335,12 +357,14 @@ class BacktestDeltaClient:
         else:
             # New position
             margin = (size * fill_price) / self.leverage
+            self.capital -= margin
             self.positions[symbol] = SimulatedPosition(
                 product_symbol=symbol,
                 size=size if side == 'buy' else -size,
                 entry_price=fill_price,
                 margin=margin
             )
+            log.info(f"OPENED {side} {symbol}: size={size}, price={fill_price:.2f}, margin={margin:.2f}")
     
     def check_bracket_orders(self) -> List[TradeRecord]:
         """
@@ -398,7 +422,9 @@ class BacktestDeltaClient:
                     pnl = (pos.entry_price - exit_price) * size
                 
                 commission = (size * exit_price) * self.commission_pct
-                self.capital += pnl - commission
+                # Return margin and add P&L, deduct commission
+                self.capital += pos.margin + pnl - commission
+                self.wallet_balance += pnl - commission
                 
                 trade = TradeRecord(
                     id=str(uuid.uuid4())[:8],
@@ -422,7 +448,7 @@ class BacktestDeltaClient:
                 del self.positions[symbol]
                 del self.bracket_orders[symbol]
                 
-                log.debug(f"Bracket order triggered: {exit_reason} on {symbol}, P&L: ${pnl:.2f}")
+                log.info(f"Bracket order triggered: {exit_reason} on {symbol}, size={size}, entry={pos.entry_price:.2f}, exit={exit_price:.2f}, P&L: ${pnl:.2f}, Balance: ${self.wallet_balance:.2f}")
         
         return closed
     

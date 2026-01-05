@@ -39,8 +39,8 @@ class UnifiedSignalValidator:
         self.last_loss_time: Dict[str, datetime] = {}
         self.consecutive_losses: Dict[str, int] = {}
         self.min_adx = getattr(settings.signal_filter, "min_adx_for_trend", 15.0)
-        self.rsi_overbought = getattr(settings.signal_filter, "rsi_overbought", 65)
-        self.rsi_oversold = getattr(settings.signal_filter, "rsi_oversold", 35)
+        self.rsi_overbought = getattr(settings.trading, "rsi_overbought", 70)
+        self.rsi_oversold = getattr(settings.trading, "rsi_oversold", 30)
         
     def validate_entry(
         self,
@@ -63,32 +63,30 @@ class UnifiedSignalValidator:
         if hasattr(ta_result, 'confidence') and ta_result.confidence < self.min_confidence:
             return False, ValidationResult.REJECTED_LOW_CONFIDENCE, f"Confidence {ta_result.confidence:.2f} < {self.min_confidence}"
 
-        # 2. Indicator Agreement Filter
-        # signal_strength can be negative for SELL signals, so use absolute value
+        # 2. Indicator Agreement Filter (Balanced)
         if hasattr(ta_result, 'signal_strength'):
             agreement = abs(ta_result.signal_strength)
-            if agreement < self.min_agreement:
-                return False, ValidationResult.REJECTED_WEAK_AGREEMENT, f"Agreement {agreement} < {self.min_agreement}"
+            if agreement < 2:
+                return False, ValidationResult.REJECTED_WEAK_AGREEMENT, f"Agreement {agreement} < 2"
 
-        # 3. ADX Trend Filter
-        if adx > 0 and adx < self.min_adx:
-            return False, ValidationResult.REJECTED_WEAK_TREND, f"ADX {adx:.1f} < {self.min_adx} (weak trend)"
+        # 3. ADX Trend Filter (Stronger - avoid weak trends)
+        if adx > 0 and adx < 25.0:
+            return False, ValidationResult.REJECTED_WEAK_TREND, f"ADX {adx:.1f} < 25.0 (Trend too weak)"
         
         # 4. Higher Timeframe Trend Alignment (Multi-Timeframe Filter)
         if higher_tf_trend not in ["unknown", "neutral"]:
-            # 2026 Enhanced Logic: Allow counter-trend trades IF confidence is high (Specialized Reversal)
-            # Relaxed to 0.50 for testing to see if shorts trigger
-            is_high_confidence = hasattr(ta_result, 'confidence') and ta_result.confidence >= 0.50
+            # 2026 Enhanced Logic: Allow counter-trend trades ONLY IF confidence is VERY high (Extreme Reversal)
+            is_extreme_confidence = hasattr(ta_result, 'confidence') and ta_result.confidence >= 0.75
             
             if direction == "long" and higher_tf_trend != "bullish":
-                if not is_high_confidence:
-                    return False, ValidationResult.REJECTED_COUNTER_TREND, f"Long signal conflicts with {higher_tf_trend} 4h trend (Confidence {ta_result.confidence:.2f} < 0.50)"
-                log.info(f"Allowing counter-trend LONG due to high confidence {ta_result.confidence:.2f}")
+                if not is_extreme_confidence:
+                    return False, ValidationResult.REJECTED_COUNTER_TREND, f"Long signal conflicts with {higher_tf_trend} 4h trend (Confidence {ta_result.confidence:.2f} < 0.75)"
+                log.info(f"Allowing counter-trend LONG due to EXTREME confidence {ta_result.confidence:.2f}")
                 
             if direction == "short" and higher_tf_trend != "bearish":
-                if not is_high_confidence:
-                    return False, ValidationResult.REJECTED_COUNTER_TREND, f"Short signal conflicts with {higher_tf_trend} 4h trend (Confidence {ta_result.confidence:.2f} < 0.50)"
-                log.info(f"Allowing counter-trend SHORT due to high confidence {ta_result.confidence:.2f}")
+                if not is_extreme_confidence:
+                    return False, ValidationResult.REJECTED_COUNTER_TREND, f"Short signal conflicts with {higher_tf_trend} 4h trend (Confidence {ta_result.confidence:.2f} < 0.75)"
+                log.info(f"Allowing counter-trend SHORT due to EXTREME confidence {ta_result.confidence:.2f}")
 
         # 5. RSI Safety Filter
         if rsi is not None:
@@ -97,25 +95,31 @@ class UnifiedSignalValidator:
             if direction == "short" and rsi < self.rsi_oversold:
                 return False, ValidationResult.REJECTED_OVERSOLD, f"RSI {rsi:.1f} too low for SHORT (< {self.rsi_oversold})"
 
-        # 6. Market Regime Filter
-        # Avoid trading in choppy markets for trend-following strategies
-        if market_regime in ["choppy", "sideways", "ranging"] and adx < 25:
-             # Threshold raised to 0.55 for balanced quality
-             if hasattr(ta_result, 'confidence') and ta_result.confidence >= 0.55:
-                 log.debug(f"Allowing trade in {market_regime} regime due to decent confidence {ta_result.confidence:.2f}")
-             else:
-                 return False, ValidationResult.REJECTED_CHOPPY_MARKET, f"Market regime is {market_regime} with weak ADX {adx:.1f} and low confidence"
+        # 6. Market Regime / Choppiness Filter
+        # Use choppiness from ta_result if available
+        chop_val = getattr(ta_result, 'choppiness', 50.0)
+        
+        if chop_val > 61.8:
+            # Extreme Choppiness - Reject trend trades
+            return False, ValidationResult.REJECTED_CHOPPY_MARKET, f"Market extreme chop (CHOP {chop_val:.1f} > 61.8)"
+        
+        if chop_val > 55.0 and adx < 25.0:
+            # High chop and weak trend - require very high confidence
+            if hasattr(ta_result, 'confidence') and ta_result.confidence < 0.65:
+                return False, ValidationResult.REJECTED_CHOPPY_MARKET, f"Choppy market (CHOP {chop_val:.1f}, ADX {adx:.1f}) - low confidence"
 
         # 7. Volume Confirmation Filter
         if volume_signal == "neutral":
-             # This is a soft filter - can be made strict if needed
-             log.debug(f"Volume signal is neutral for {symbol}, proceeding with caution")
-        elif volume_signal == "weak":
-             return False, ValidationResult.REJECTED_LOW_VOLUME, f"Volume confirmation failed (signal: {volume_signal})"
+             # Neutral volume is okay if other factors are strong, but log it
+             log.debug(f"Volume signal is neutral for {symbol}")
+        elif direction == "long" and volume_signal == "bearish":
+             return False, ValidationResult.REJECTED_LOW_VOLUME, "LONG signal with bearish volume bias"
+        elif direction == "short" and volume_signal == "bullish":
+             return False, ValidationResult.REJECTED_LOW_VOLUME, "SHORT signal with bullish volume bias"
 
-        # Filter out very choppy markets (ADX < 15)
-        if adx < 15 and volume_signal == "neutral":
-            return False, ValidationResult.REJECTED_WEAK_TREND, f"Very weak ADX {adx:.1f} - market too choppy"
+        # 8. Very Weak Trend Filter
+        if adx < 15 and chop_val > 50:
+            return False, ValidationResult.REJECTED_WEAK_TREND, f"Market too flat (ADX {adx:.1f}, CHOP {chop_val:.1f})"
 
         # 9. Loss Cooldown (Whiplash Protection)
         cooldown_mins = getattr(settings.signal_filter, "loss_cooldown_minutes", 30)

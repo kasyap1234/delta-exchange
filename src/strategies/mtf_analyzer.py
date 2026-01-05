@@ -66,11 +66,10 @@ class MultiTimeframeAnalyzer:
             Dictionary with trend and recommendation data
         """
         try:
-            # Fetch higher timeframe candles
+            # Fetch higher timeframe candles (uses candle_count from settings by default)
             higher_candles = self.client.get_candles(
                 symbol=symbol,
-                resolution=self.higher_tf,
-                limit=200
+                resolution=self.higher_tf
             )
             
             if not higher_candles or len(higher_candles) < 50:

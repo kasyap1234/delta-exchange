@@ -61,7 +61,16 @@ class RiskManager:
     def __init__(self):
         """Initialize risk manager with configuration settings."""
         self.config = settings.trading
+        self.risk_config = settings.enhanced_risk
         self.open_positions: Dict[str, PositionSizing] = {}
+        # INR Handling: Delta India returns balance in INR. We assume ~88 INR/USD for conservative sizing
+        # In a real prod environment, we would fetch this from an API or config
+        self.inr_usd_rate = 88.0 
+
+    def can_open_position(self, symbol: str, size: float) -> bool:
+        """Check if a new position can be opened based on global limits."""
+        # Simple check for now, can be expanded
+        return len(self.open_positions) < self.config.max_open_positions
 
     def assess_trade_risk(
         self, available_balance: float, current_positions: int
@@ -186,6 +195,16 @@ class RiskManager:
         Returns:
             PositionSizing with size, stop-loss, and take-profit
         """
+        # 0. CURRENCY NORMALIZATION (INR -> USD)
+        # If running in India region, balance is likely INR. Convert to USD for sizing calculations against USD pairs.
+        # Heuristic: If balance > 10,000 and region is India, likely INR.
+        # NOTE: Skip this in backtest mode since backtest capital is already in USD.
+        effective_balance = available_balance
+        is_backtest = performance_data.get("is_backtest", False) if performance_data else False
+        if not is_backtest and settings.delta.region == "india" and available_balance > 5000:
+             effective_balance = available_balance / self.inr_usd_rate
+             log.debug(f"Normalized Balance: {available_balance} INR -> ${effective_balance:.2f} USD")
+
         # 1. Determine Stop-Loss Distance based on ATR or % fallback
         if atr:
             sl_multiplier = settings.enhanced_risk.atr_stop_multiplier
@@ -203,7 +222,7 @@ class RiskManager:
 
         # 3. Calculate Base Position Size based on RISK
         nominal_size = self.calculate_risk_based_size(
-            entry_price, stop_loss_price, available_balance
+            entry_price, stop_loss_price, effective_balance
         )
 
         # 4. Apply Kelly Criterion Limit (if enabled) with ACTUAL performance data
@@ -242,7 +261,7 @@ class RiskManager:
             kelly_fraction = self.get_kelly_fraction(win_rate, win_loss_ratio)
 
             # Kelly-capped size (Kelly fraction refers to fraction of account)
-            kelly_max_allocation = available_balance * kelly_fraction
+            kelly_max_allocation = effective_balance * kelly_fraction
             kelly_size_units = kelly_max_allocation / entry_price
 
             nominal_size = min(nominal_size, kelly_size_units)
@@ -253,11 +272,11 @@ class RiskManager:
 
         # 6. Global Caps Check
         # Never exceed max_position_pct of total account
-        total_account_cap = available_balance * settings.enhanced_risk.max_position_pct
+        total_account_cap = effective_balance * settings.enhanced_risk.max_position_pct
         cap_units = total_account_cap / entry_price
 
         # Also respect the older max_capital_per_trade for backward compatibility or extra safety
-        legacy_cap = available_balance * self.config.max_capital_per_trade
+        legacy_cap = effective_balance * self.config.max_capital_per_trade
         legacy_cap_units = legacy_cap / entry_price
 
         final_size = min(nominal_size, cap_units, legacy_cap_units)

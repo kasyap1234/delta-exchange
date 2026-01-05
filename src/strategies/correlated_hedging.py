@@ -119,7 +119,7 @@ class CorrelatedHedgingStrategy(BaseStrategy):
         """
         signals = []
         
-        if not self.is_active:
+        if not self.is_active or available_capital <= 0:
             return signals
         
         # Update position tracking
@@ -179,10 +179,9 @@ class CorrelatedHedgingStrategy(BaseStrategy):
             hedge_symbol = self.correlation.get_hedge_pair(symbol)
             should_hedge, hedge_ratio = self.correlation.should_hedge(symbol, hedge_symbol)
             
-            # CRITICAL: Skip if hedge symbol already has a position (would cause netting)
-            if should_hedge and hedge_symbol in symbols_in_use:
-                log.warning(f"[CORR_HEDGE] {symbol}: Skipping trade - hedge symbol {hedge_symbol} "
-                           f"already has a position (would cause netting)")
+            # 2026 Enhanced: Allow sharing hedges (accumulation)
+            # Only skip if the primary symbol itself is in use
+            if symbol in symbols_in_use:
                 continue
             
             # Check for strong signals
@@ -412,10 +411,32 @@ class CorrelatedHedgingStrategy(BaseStrategy):
         checked_symbols = set()
         
         # 1. First check hedge_manager positions (for positions we created)
-        for hedged_pos in self.hedge_manager.get_active_positions():
+        # Modified to handle orphaned hedges (where primary moved to SL/TP)
+        active_hedges = self.hedge_manager.get_all_positions()
+        for hedged_pos in active_hedges:
+            if hedged_pos.status != HedgeStatus.ACTIVE:
+                continue
+                
             symbol = hedged_pos.primary_symbol
             checked_symbols.add(symbol)
             
+            # Verify primary exists on exchange
+            if not self.has_position(symbol):
+                # Primary is gone but hedge might still be open!
+                log.info(f"[HEDGE] Primary {symbol} gone (SL/TP), closing orphan hedge {hedged_pos.hedge_symbol}")
+                signals.append(StrategySignal(
+                    strategy_type=self.strategy_type,
+                    symbol=hedged_pos.hedge_symbol,
+                    direction=SignalDirection.CLOSE_LONG if hedged_pos.hedge_side == 'long' else SignalDirection.CLOSE_SHORT,
+                    confidence=1.0,
+                    entry_price=0,
+                    position_size=0,
+                    reason=f"Orphan hedge cleanup for {symbol}",
+                    metadata={'hedge_position_id': hedged_pos.id}
+                ))
+                continue
+
+            # Regular exit check for the pair
             exit_signal = self._check_position_for_exit(
                 symbol=symbol,
                 entry_price=hedged_pos.primary_entry_price,
@@ -581,6 +602,13 @@ class CorrelatedHedgingStrategy(BaseStrategy):
             hedge_ratio=signal.metadata.get('hedge_ratio', self.hedge_ratio)
         )
     
+    def update_positions(self, positions: List[Position]) -> None:
+        """Sync internal position tracking and hedge manager with exchange."""
+        super().update_positions(positions)
+        # Note: HedgeManager.get_active_positions() handles verification against exchange
+        # internally, so we don't need additional logic here but we provide the override
+        # for consistency with other strategies.
+
     def execute_exit(self, signal: StrategySignal) -> bool:
         """
         Execute an exit signal, closing both primary and hedge.

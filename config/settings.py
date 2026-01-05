@@ -35,7 +35,7 @@ class DeltaConfig:
     api_key: str = field(default_factory=lambda: os.getenv("DELTA_API_KEY", ""))
     api_secret: str = field(default_factory=lambda: os.getenv("DELTA_API_SECRET", ""))
     environment: str = field(default_factory=lambda: os.getenv("DELTA_ENV", "testnet"))
-    region: str = field(default_factory=lambda: os.getenv("DELTA_REGION", "india"))
+    region: str = field(default_factory=lambda: os.getenv("DELTA_REGION", "india"))  # Default to India
 
     @property
     def base_url(self) -> str:
@@ -64,11 +64,11 @@ class StrategyAllocationConfig:
 
     funding_arbitrage: float = field(
         default_factory=lambda: float(os.getenv("ALLOC_FUNDING_ARB", "0.00"))
-    )  # 0% (Disabled for Delta India)
+    )  # 0% (Disabled for Delta India - No Spot)
 
     # Tier 2: Correlated Pair Hedging (medium risk)
     correlated_hedging: float = field(
-        default_factory=lambda: float(os.getenv("ALLOC_HEDGING", "0.60"))
+        default_factory=lambda: float(os.getenv("ALLOC_CORR_HEDGE", "0.60"))
     )  # 60% default
 
     # Tier 3: Multi-Timeframe Trend Following (higher risk)
@@ -104,7 +104,6 @@ class HedgingConfig:
         default_factory=lambda: {
             "BTCUSD": "ETHUSD",
             "ETHUSD": "BTCUSD",
-            "SOLUSD": "ETHUSD",
         }
     )
 
@@ -261,7 +260,7 @@ class SignalFilterConfig:
 
     # Minimum indicator agreement (out of total indicators)
     min_indicator_agreement: int = field(
-        default_factory=lambda: int(os.getenv("MIN_INDICATOR_AGREEMENT", "3"))
+        default_factory=lambda: int(os.getenv("MIN_INDICATOR_AGREEMENT", "1"))
     )
 
     # Maximum volatility percentile to trade (0-100)
@@ -325,10 +324,10 @@ class TradingConfig:
     """Trading strategy configuration."""
 
     # Trading pairs to monitor (USD format for perpetual contracts)
-    # Only SOLUSD - BTC and ETH removed due to poor backtest performance
+    # Contracts on Delta India are often settled in INR but quoted in USD or INR
     trading_pairs: List[str] = field(
         default_factory=lambda: os.getenv(
-            "TRADING_PAIRS", "SOLUSD"
+            "TRADING_PAIRS", "BTCUSD,ETHUSD"
         ).split(",")
     )
 
@@ -374,9 +373,9 @@ class TradingConfig:
     ema_short: int = 9
     ema_long: int = 21
 
-    # Minimum indicators that must agree for a trade (2 = 50% agreement, ADX filter adds quality)
+    # Minimum indicators that must agree for a trade (1 = allow single robust signal, ADX filter adds quality)
     min_signal_agreement: int = field(
-        default_factory=lambda: int(os.getenv("MIN_SIGNAL_AGREEMENT", "2"))
+        default_factory=lambda: int(os.getenv("MIN_SIGNAL_AGREEMENT", "1"))
     )
 
     # Minimum confidence for trade entry (0.0 - 1.0)

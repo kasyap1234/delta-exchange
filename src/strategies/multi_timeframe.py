@@ -144,15 +144,14 @@ class MultiTimeframeStrategy(BaseStrategy):
             current_positions: Current open positions
             
         Returns:
-            List of StrategySignal for aligned entries/exits
         """
-        signals = []
-        
-        if not self.is_active:
-            return signals
-        
-        # Update position tracking
+        if not self.is_active or available_capital <= 0:
+            return []
+
+        # Sync positions before analysis
         self.update_positions(current_positions)
+
+        signals = []
         
         # Update trailing stops and check exits
         exit_signals = self._check_exit_signals()
@@ -178,7 +177,7 @@ class MultiTimeframeStrategy(BaseStrategy):
         
         for symbol in self.trading_pairs:
             # Skip if already have position AND it's not being closed this cycle
-            if symbol in self._mtf_positions:
+            if self.has_position(symbol):
                 being_closed = any(s.symbol == symbol and s.direction in [SignalDirection.CLOSE_LONG, SignalDirection.CLOSE_SHORT] for s in signals)
                 if not being_closed:
                     continue
@@ -206,7 +205,12 @@ class MultiTimeframeStrategy(BaseStrategy):
                     
                     # Calculate indicators for validator
                     is_trending, adx_val = self.analyzer.is_trending(high, low, close)
-                    rsi_val = self.analyzer.calculate_rsi(close)
+                    rsi_res = self.analyzer.calculate_rsi(close)
+                    rsi_val = rsi_res.value
+                    
+                    # Choppiness Index calculation
+                    chop_result = self.analyzer.calculate_choppiness_index(high, low, close)
+                    chop_val = chop_result.value if hasattr(chop_result, 'value') else 50.0
                     
                     # Volume confirmation
                     volume_res = self.analyzer.calculate_volume_signal(volume, close)
@@ -216,15 +220,17 @@ class MultiTimeframeStrategy(BaseStrategy):
                     market_regime = "trending" if is_trending else "ranging"
                     
                     # Construct a mock ta_result for the validator
-                    # Validator uses confidence and signal_strength (agreement)
+                    # Validator uses confidence, signal_strength, and choppiness
                     class MockTAResult:
-                        def __init__(self, confidence, agreement):
+                        def __init__(self, confidence, agreement, choppiness):
                             self.confidence = confidence
                             self.signal_strength = agreement
+                            self.choppiness = choppiness
                             
                     ta_result = MockTAResult(
                         confidence=mtf_result.get('entry_confidence', 0.5),
-                        agreement=mtf_result.get('agreement_count', 2)
+                        agreement=mtf_result.get('agreement_count', 2),
+                        choppiness=chop_val
                     )
                     
                     higher_tf_trend = mtf_result.get('higher_tf_trend', 'neutral')
@@ -282,14 +288,14 @@ class MultiTimeframeStrategy(BaseStrategy):
                 stop_loss = self.analyzer.calculate_atr_stop(
                     current_price, atr, 'long', multiplier=2.0
                 )
-                # Take profit at 4x ATR (2:1 R:R with 2x ATR stop)
-                take_profit = current_price + (atr * 4)
+                # Take profit at 6x ATR (3:1 R:R with 2x ATR stop)
+                take_profit = current_price + (atr * 6)
             else:
                 direction = SignalDirection.SHORT
                 stop_loss = self.analyzer.calculate_atr_stop(
                     current_price, atr, 'short', multiplier=2.0
                 )
-                take_profit = current_price - (atr * 4)
+                take_profit = current_price - (atr * 6)
             
             # Position size calculation (Risk-based: 1-2% of capital)
             risk_pct = getattr(settings.enhanced_risk, 'max_risk_per_trade', 0.02)
@@ -298,8 +304,10 @@ class MultiTimeframeStrategy(BaseStrategy):
             
             if risk_per_unit > 0:
                 position_size = risk_amount / risk_per_unit
+                log.info(f"DEBUG SIZING: symbol={symbol}, risk_amt={risk_amount:.2f}, risk_unit={risk_per_unit:.2f}, size={position_size:.4f}, capital={capital:.2f}, atr={atr:.2f}")
             else:
                 position_size = capital / current_price # Fallback
+                log.info(f"DEBUG SIZING FALLBACK: symbol={symbol}, size={position_size:.4f}, capital={capital:.2f}")
             
             # Hard cap: Never exceed allocated capital
             max_size = capital / current_price
@@ -387,8 +395,9 @@ class MultiTimeframeStrategy(BaseStrategy):
                     except Exception as e:
                         log.error(f"Failed to update bracket for {symbol}: {e}")
             
-                except Exception as e:
-                    log.error(f"Error managing position for {symbol}: {e}")
+            except Exception as e:
+                log.error(f"Error managing position for {symbol}: {e}")
+                continue
             
             # 2. Check for signal reversal (Trend Flip)
             try:
@@ -504,6 +513,25 @@ class MultiTimeframeStrategy(BaseStrategy):
         
         return pos
     
+    def update_positions(self, positions: List[Position]) -> None:
+        """Sync internal MTF tracking with exchange positions."""
+        super().update_positions(positions)
+        
+        # Get set of symbols with active positions on exchange
+        active_symbols = {p.product_symbol for p in positions if p.size != 0}
+        
+        # Remove any internal positions that no longer exist on exchange
+        current_mtf_symbols = list(self._mtf_positions.keys())
+        for symbol in current_mtf_symbols:
+            if symbol not in active_symbols:
+                log.info(f"MTF: Position for {symbol} closed externally (likely SL/TP), removing from tracking")
+                del self._mtf_positions[symbol]
+                
+        # Optional: Log if mismatch found (position on exchange but not in MTF)
+        for symbol in active_symbols:
+            if symbol in self.trading_pairs and symbol not in self._mtf_positions:
+                log.debug(f"MTF: Detected external or untracked position for {symbol}")
+
     def execute_exit(self, signal: StrategySignal) -> bool:
         """Execute an exit and record trade."""
         symbol = signal.symbol
