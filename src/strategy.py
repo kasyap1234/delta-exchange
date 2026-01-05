@@ -4,8 +4,9 @@ Combines technical analysis with risk management to generate actionable trade de
 """
 
 from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -15,6 +16,8 @@ from src.hedging.correlation import CorrelationCalculator
 from src.hedging.hedge_manager import HedgedPosition, HedgeManager
 from src.risk_manager import PositionSizing, RiskManager, TradeRisk
 from src.technical_analysis import Signal, TechnicalAnalysisResult, TechnicalAnalyzer
+from src.unified_signal_validator import UnifiedSignalValidator, ValidationResult
+from src.strategy_core import StrategyCore, TradeDirection, SignalDecision
 from utils.logger import log
 
 
@@ -75,16 +78,25 @@ class TradingStrategy:
         """
         self.client = client
         self.executor = executor
-        self.analyzer = TechnicalAnalyzer()
-        self.risk_manager = RiskManager()
         self.config = settings.trading
         self.dry_run = dry_run
+
+        # Use shared strategy core for consistent logic with backtest
+        self.strategy_core = StrategyCore()
+        
+        # Keep references for backward compatibility
+        self.analyzer = self.strategy_core.analyzer
+        self.risk_manager = self.strategy_core.risk_manager
+        self.signal_validator = self.strategy_core.signal_validator
 
         # Initialize hedging components
         self.correlation_calc = CorrelationCalculator(client)
         self.hedge_manager = HedgeManager(
             client, self.correlation_calc, default_hedge_ratio=0.3, dry_run=dry_run
         )
+        
+        # Cache for HTF candle data to avoid repeated API calls
+        self._htf_cache: Dict[str, Tuple[List[Candle], datetime]] = {}
 
     def analyze_market(self, symbol: str) -> Optional[TechnicalAnalysisResult]:
         """
@@ -119,6 +131,78 @@ class TradingStrategy:
         except Exception as e:
             log.error(f"Market analysis failed for {symbol}: {e}")
             return None
+
+    def _get_htf_trend(self, symbol: str) -> str:
+        """
+        Get higher timeframe trend direction for a symbol.
+        
+        Returns:
+            'bullish', 'bearish', or 'neutral'
+        """
+        try:
+            # Check cache (valid for 30 minutes to reduce API calls)
+            cache_key = symbol
+            if cache_key in self._htf_cache:
+                cached_candles, cache_time = self._htf_cache[cache_key]
+                if (datetime.now() - cache_time).total_seconds() < 1800:  # 30 min
+                    close = np.array([c.close for c in cached_candles])
+                    return self.analyzer.get_trend_direction(close)
+            
+            # Fetch 4h candles for HTF trend
+            htf_resolution = settings.mtf.higher_timeframe  # "4h"
+            candles = self.client.get_candles(symbol=symbol, resolution=htf_resolution)
+            
+            if len(candles) < 30:
+                return "neutral"
+            
+            # Cache the candles
+            self._htf_cache[cache_key] = (candles, datetime.now())
+            
+            close = np.array([c.close for c in candles])
+            return self.analyzer.get_trend_direction(close)
+            
+        except Exception as e:
+            log.debug(f"HTF trend fetch failed for {symbol}: {e}")
+            return "neutral"
+
+    def _get_market_data(self, symbol: str) -> Tuple[float, Optional[float], str]:
+        """
+        Get market data needed for signal validation.
+        
+        Returns:
+            Tuple of (adx, rsi, volume_signal)
+        """
+        try:
+            candles = self.client.get_candles(
+                symbol=symbol, resolution=self.config.candle_interval
+            )
+            
+            if len(candles) < 50:
+                return 0.0, None, "neutral"
+            
+            close = np.array([c.close for c in candles])
+            high = np.array([c.high for c in candles])
+            low = np.array([c.low for c in candles])
+            
+            # Calculate ADX
+            adx = self.analyzer.calculate_adx(high, low, close)
+            
+            # Calculate RSI
+            rsi = self.analyzer.calculate_rsi(close)
+            
+            # Volume signal (simplified - neutral if no volume data)
+            volume_signal = "neutral"
+            if hasattr(candles[0], 'volume'):
+                volumes = np.array([c.volume for c in candles])
+                vol_result = self.analyzer.calculate_volume_signal(volumes, close)
+                volume_signal = vol_result.signal.value if hasattr(vol_result.signal, 'value') else "neutral"
+            
+            return adx, rsi, volume_signal
+            
+        except Exception as e:
+            log.debug(f"Market data fetch failed for {symbol}: {e}")
+            return 0.0, None, "neutral"
+
 
     def make_decision(
         self, symbol: str, available_balance: float, current_positions: List[Position]
@@ -297,8 +381,67 @@ class TradingStrategy:
                 risk_assessment=risk,
             )
 
-        # Check for strong bullish signals
+        # Determine potential direction from basic signal check
+        direction = None
         if self.analyzer.should_open_long(ta_result):
+            direction = "long"
+        elif self.analyzer.should_open_short(ta_result):
+            direction = "short"
+        
+        if direction is None:
+            return TradeDecision(
+                symbol=symbol,
+                action=TradeAction.HOLD,
+                signal=ta_result.combined_signal,
+                confidence=ta_result.confidence,
+                entry_price=current_price,
+                reason="No strong signal - waiting",
+                ta_result=ta_result,
+            )
+
+        # === UNIFIED SIGNAL VALIDATION (matching backtest logic) ===
+        # Get market data for validation
+        htf_trend = self._get_htf_trend(symbol)
+        adx, rsi, volume_signal = self._get_market_data(symbol)
+        
+        # Determine market regime
+        is_trending, _ = self.analyzer.is_trending(
+            np.array([current_price]),  # Simplified - use cached data if available
+            np.array([current_price]),
+            np.array([current_price])
+        ) if hasattr(self.analyzer, 'is_trending') else (True, 0)
+        market_regime = "trending" if is_trending else "ranging"
+        
+        # Validate entry using unified validator
+        is_valid, validation_result, reason = self.signal_validator.validate_entry(
+            symbol=symbol,
+            direction=direction,
+            ta_result=ta_result,
+            higher_tf_trend=htf_trend,
+            adx=adx,
+            rsi=rsi,
+            volume_signal=volume_signal,
+            market_regime=market_regime,
+            timestamp=datetime.now()
+        )
+        
+        if not is_valid:
+            log.info(f"Trade REJECTED by unified validator: {symbol} {direction} - {reason}")
+            return TradeDecision(
+                symbol=symbol,
+                action=TradeAction.HOLD,
+                signal=ta_result.combined_signal,
+                confidence=ta_result.confidence,
+                entry_price=current_price,
+                reason=f"Signal filter: {reason}",
+                risk_assessment=risk,
+                ta_result=ta_result,
+            )
+        
+        log.info(f"Trade APPROVED by unified validator: {symbol} {direction} - {reason}")
+
+        # Execute validated trade
+        if direction == "long":
             sizing = self.risk_manager.calculate_position_size(
                 symbol=symbol,
                 side="buy",
@@ -315,13 +458,11 @@ class TradingStrategy:
                 position_size=sizing.size,
                 stop_loss=sizing.stop_loss_price,
                 take_profit=sizing.take_profit_price,
-                reason="Multiple bullish signals confirmed",
+                reason=f"Validated: {reason}",
                 risk_assessment=risk,
                 ta_result=ta_result,
             )
-
-        # Check for strong bearish signals
-        elif self.analyzer.should_open_short(ta_result):
+        else:  # short
             sizing = self.risk_manager.calculate_position_size(
                 symbol=symbol,
                 side="sell",
@@ -338,21 +479,10 @@ class TradingStrategy:
                 position_size=sizing.size,
                 stop_loss=sizing.stop_loss_price,
                 take_profit=sizing.take_profit_price,
-                reason="Multiple bearish signals confirmed",
+                reason=f"Validated: {reason}",
                 risk_assessment=risk,
                 ta_result=ta_result,
             )
-
-        # No strong signal
-        return TradeDecision(
-            symbol=symbol,
-            action=TradeAction.HOLD,
-            signal=ta_result.combined_signal,
-            confidence=ta_result.confidence,
-            entry_price=current_price,
-            reason="No strong signal - waiting",
-            ta_result=ta_result,
-        )
 
     def analyze_all_pairs(
         self, available_balance: float, current_positions: List[Position]

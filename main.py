@@ -28,6 +28,8 @@ from config.settings import settings
 from src.delta_client import DeltaExchangeClient
 from src.strategy import TradingStrategy, TradeAction
 from src.trader import TradeExecutor
+from src.position_monitor import PositionMonitor
+from src.risk_manager import RiskManager
 from utils.logger import log
 
 
@@ -58,6 +60,7 @@ class TradingBot:
         self.client: Optional[DeltaExchangeClient] = None
         self.strategy: Optional[TradingStrategy] = None
         self.executor: Optional[TradeExecutor] = None
+        self.position_monitor: Optional[PositionMonitor] = None
         self.scheduler: Optional[BlockingScheduler] = None
         
         # Statistics
@@ -105,7 +108,12 @@ class TradingBot:
         self.executor = TradeExecutor(self.client, dry_run=self.dry_run)
         self.strategy = TradingStrategy(self.client, self.executor, dry_run=self.dry_run)
         
+        # Initialize position monitor for dynamic stop management
+        risk_manager = RiskManager()
+        self.position_monitor = PositionMonitor(self.client, risk_manager)
+        
         log.info("Initialization complete!")
+        log.info("Position monitoring enabled: Break-even at 1.0R, Trailing at 1.5R")
         return True
     
     def run_trading_cycle(self) -> None:
@@ -138,6 +146,24 @@ class TradingBot:
                 log.info(f"  {pos.product_symbol}: {pos.size} @ {pos.entry_price:.2f} "
                          f"(PnL: {pos.unrealized_pnl:.2f})")
             
+            # === POSITION MONITORING: Update dynamic stops ===
+            if self.position_monitor and positions:
+                log.debug("Checking position stops (break-even/trailing)...")
+                stop_updates = self.position_monitor.update_positions(positions)
+                if stop_updates:
+                    log.info(f"Updating {len(stop_updates)} stop order(s)")
+                    if not self.dry_run:
+                        self.position_monitor.apply_stop_updates(stop_updates)
+                    else:
+                        for sym, new_stop, reason in stop_updates:
+                            log.info(f"  [DRY RUN] Would update {sym} stop to {new_stop:.2f} ({reason})")
+                
+                # Log position monitoring status
+                monitor_status = self.position_monitor.get_status()
+                if monitor_status['tracked_positions'] > 0:
+                    log.info(f"Tracked positions: {monitor_status['tracked_positions']} "
+                             f"(BE: {monitor_status['break_even_active']}, Trail: {monitor_status['trailing_active']})")
+            
             # Check for hedging opportunities (auto-protect losing positions)
             log.info("Evaluating hedging opportunities...")
             new_hedges = self.strategy.evaluate_hedging_opportunities(positions)
@@ -164,7 +190,24 @@ class TradingBot:
             if actionable:
                 log.info(f"Actionable decisions: {len(actionable)}")
                 for decision in actionable:
-                    self.executor.execute_decision(decision)
+                    order = self.executor.execute_decision(decision)
+                    
+                    # Start tracking new positions for dynamic stop management
+                    if order and self.position_monitor and decision.action in [TradeAction.OPEN_LONG, TradeAction.OPEN_SHORT]:
+                        side = "long" if decision.action == TradeAction.OPEN_LONG else "short"
+                        self.position_monitor.start_tracking(
+                            symbol=decision.symbol,
+                            entry_price=decision.entry_price,
+                            stop_loss=decision.stop_loss or decision.entry_price * 0.98,
+                            take_profit=decision.take_profit or decision.entry_price * 1.04,
+                            size=decision.position_size or 0,
+                            side=side
+                        )
+                    
+                    # Stop tracking closed positions
+                    elif decision.action in [TradeAction.CLOSE_LONG, TradeAction.CLOSE_SHORT]:
+                        if self.position_monitor:
+                            self.position_monitor.stop_tracking(decision.symbol)
             else:
                 log.info("No actionable signals - holding positions")
             

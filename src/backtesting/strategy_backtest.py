@@ -15,6 +15,7 @@ from src.backtesting.performance import PerformanceMetrics, PerformanceAnalyzer
 from src.strategies.base_strategy import StrategySignal, SignalDirection
 from src.technical_analysis import TechnicalAnalyzer, Signal
 from src.risk_manager import RiskManager
+from src.strategy_core import StrategyCore
 from config.settings import settings
 from utils.logger import log
 
@@ -497,53 +498,45 @@ class StrategyBacktestRunner:
         warmup_bars: int = 50
     ) -> StrategyBacktestResult:
         """
-        Simulate Funding Arbitrage returns.
+        Funding Arbitrage - DISABLED.
         
-        This is a delta-neutral strategy, so we simulate steady funding income
-        based on historical average funding rates.
+        This strategy is disabled because:
+        1. It requires capital on both spot AND perpetual markets
+        2. Funding rates are highly variable and can be negative
+        3. Real implementation needs historical funding rate data
+        
+        To enable: Set ALLOC_FUNDING_ARB > 0 in .env and provide real funding data.
         """
-        log.info("Starting Funding Arbitrage Simulation")
+        log.info("Funding Arbitrage: DISABLED (no simulation)")
         
         data_provider = BacktestDataProvider(data_dict)
-        capital = self.initial_capital * 0.4  # 40% allocation
-        
-        total_bars = data_provider.total_bars
-        usable_bars = total_bars - warmup_bars
-        
-        # Funding occurs every 8 hours (32 x 15min bars)
-        bars_per_funding = 32
-        funding_events = usable_bars // bars_per_funding
-        
-        # Calculate returns
-        # Delta-neutral: Long spot, short perp of equal value
-        # Only profit from funding (perp shorts receive positive funding usually)
-        total_funding = capital * funding_rate * funding_events
+        capital = 0  # No allocation
         
         first_symbol = list(data_dict.keys())[0]
         start_date = data_dict[first_symbol].start_date
         end_date = data_dict[first_symbol].end_date
         
         return StrategyBacktestResult(
-            strategy_name="Funding Arbitrage",
+            strategy_name="Funding Arbitrage (Disabled)",
             symbols=list(data_dict.keys()),
             start_date=start_date,
             end_date=end_date,
-            initial_capital=capital,
-            final_capital=capital + total_funding,
-            total_pnl=total_funding,
-            total_pnl_pct=(total_funding / capital) * 100,
-            total_trades=funding_events,  # Each funding event is a "trade"
-            winning_trades=funding_events,  # Assume all positive
+            initial_capital=0,
+            final_capital=0,
+            total_pnl=0,
+            total_pnl_pct=0,
+            total_trades=0,
+            winning_trades=0,
             losing_trades=0,
-            win_rate=100.0,
-            profit_factor=float('inf'),
+            win_rate=0,
+            profit_factor=0,
             max_drawdown=0,
             max_drawdown_pct=0,
-            sharpe_ratio=2.0,  # Estimated for delta-neutral
-            equity_curve=[capital + (capital * funding_rate * i) for i in range(funding_events + 1)],
-            signals_generated=1,
-            signals_executed=1,
-            bars_processed=usable_bars
+            sharpe_ratio=0,
+            equity_curve=[0],
+            signals_generated=0,
+            signals_executed=0,
+            bars_processed=data_provider.total_bars - warmup_bars
         )
     
     def run_all_strategies(

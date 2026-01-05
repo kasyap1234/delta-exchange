@@ -16,6 +16,7 @@ from src.hedging.hedge_manager import HedgeManager, HedgedPosition
 from src.hedging.correlation import CorrelationCalculator
 from src.delta_client import DeltaExchangeClient  # Needed for types, even if mocked
 from src.unified_signal_validator import UnifiedSignalValidator, ValidationResult
+from src.strategy_core import StrategyCore, SignalDecision
 from config.settings import settings
 from utils.logger import log
 
@@ -215,10 +216,13 @@ class BacktestEngine:
         self.commission_pct = commission_pct
         self.slippage_pct = slippage_pct
 
-        # Trading components
-        self.analyzer = TechnicalAnalyzer()
-        self.risk_manager = RiskManager()
-        self.signal_validator = UnifiedSignalValidator()
+        # Use shared strategy core for consistent logic with live trading
+        self.strategy_core = StrategyCore()
+        
+        # Keep references for backward compatibility
+        self.analyzer = self.strategy_core.analyzer
+        self.risk_manager = self.strategy_core.risk_manager
+        self.signal_validator = self.strategy_core.signal_validator
         
         # Initialize Hedging Components (Mock Client)
         class MockClient(DeltaExchangeClient):
@@ -335,14 +339,6 @@ class BacktestEngine:
                 bar_time=current_bar.datetime,
                 atr=atr
             )
-
-            # --- FUNDING ARBITRAGE SIMULATION ---
-            # Simulate low-risk funding arb income (0.03% daily or ~11% APY)
-            # We apply it to 40% of the capital (standard allocation)
-            daily_yield = 0.0003
-            bars_per_day = 96 # 15m candles
-            funding_income = (self.capital * 0.4 * daily_yield) / bars_per_day
-            self.capital += funding_income
 
             # Update mock client for correlation calc (if needed for other logic)
             self.mock_client.get_ticker = lambda s: {'mark_price': current_bar.close} if s == data.symbol else {'mark_price': 0.0}
@@ -486,9 +482,12 @@ class BacktestEngine:
                 is_trending, _ = self.analyzer.is_trending(historical_highs, historical_lows, historical_closes)
                 market_regime = "trending" if is_trending else "ranging"
 
-        # In backtest, we might not have higher_tf_trend easily available per bar unless pre-calculated
-        # For now, we'll use neutral if not provided, but we can pass it if we expand the engine.
-        higher_tf_trend = "neutral" 
+        # Calculate Higher Timeframe Trend using EMA crossover on historical data
+        # This simulates looking at 4h trend when we have 15m data
+        # Use longer EMAs (50/200) to approximate HTF trend
+        higher_tf_trend = "neutral"
+        if historical_closes is not None and len(historical_closes) >= 200:
+            higher_tf_trend = self.analyzer.get_trend_direction(historical_closes, ema_short=50, ema_long=200) 
         
         is_valid, validation_result, reason = self.signal_validator.validate_entry(
             symbol=symbol,
@@ -892,6 +891,18 @@ class MultiStrategyBacktest:
         Uses historical average funding rates for crypto perpetuals.
         Average funding: 0.01% per 8 hours = 0.03% per day = ~11% APY
         """
+        # Handle zero allocation case
+        if capital <= 0:
+            return {
+                "strategy": "funding_arbitrage",
+                "initial_capital": 0,
+                "final_capital": 0,
+                "total_pnl": 0,
+                "total_pnl_pct": 0,
+                "estimated_apy": 0,
+                "note": "Funding arbitrage disabled (0% allocation)",
+            }
+        
         # Conservative estimate: 0.02% daily return on delta-neutral position
         daily_return = 0.0002
         total_return = capital * daily_return * days

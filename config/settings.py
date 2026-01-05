@@ -254,7 +254,7 @@ class SignalFilterConfig:
         default_factory=lambda: int(os.getenv("CONSECUTIVE_LOSS_LIMIT", "3"))
     )
 
-    # Cooldown after loss streak (minutes) - increased for better whiplash protection
+    # Cooldown after loss streak (minutes) - for whiplash protection
     loss_cooldown_minutes: int = field(
         default_factory=lambda: int(os.getenv("LOSS_COOLDOWN_MINUTES", "45"))
     )
@@ -325,17 +325,17 @@ class TradingConfig:
     """Trading strategy configuration."""
 
     # Trading pairs to monitor (USD format for perpetual contracts)
-    # Only SOLUSD - BTC and ETH removed due to poor backtest performance
+    # Multi-asset trading for diversification across market conditions
     trading_pairs: List[str] = field(
         default_factory=lambda: os.getenv(
-            "TRADING_PAIRS", "SOLUSD"
+            "TRADING_PAIRS", "BTCUSD,ETHUSD,SOLUSD"
         ).split(",")
     )
 
-    # Risk management - Wider stops for better profitability
+    # Risk management - Reduced per-trade allocation for multi-asset
     max_capital_per_trade: float = field(
-        default_factory=lambda: float(os.getenv("MAX_CAPITAL_PER_TRADE", "0.15"))
-    )  # 15% (was 25%)
+        default_factory=lambda: float(os.getenv("MAX_CAPITAL_PER_TRADE", "0.10"))
+    )  # 10% per trade (reduced for 3 assets)
     stop_loss_pct: float = field(
         default_factory=lambda: float(os.getenv("STOP_LOSS_PCT", "0.025"))
     )  # 2.5% - Tighter for better risk management

@@ -387,8 +387,8 @@ class MultiTimeframeStrategy(BaseStrategy):
                     except Exception as e:
                         log.error(f"Failed to update bracket for {symbol}: {e}")
             
-                except Exception as e:
-                    log.error(f"Error managing position for {symbol}: {e}")
+            except Exception as e:
+                log.error(f"Error managing position for {symbol}: {e}")
             
             # 2. Check for signal reversal (Trend Flip)
             try:

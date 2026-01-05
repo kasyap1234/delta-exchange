@@ -14,21 +14,30 @@ SERVICE_NAME="delta-bot"
 echo "👤 Running as user: $USER"
 echo "📂 App directory: $APP_DIR"
 
-# 1. Update system dependencies
+# 1. Update system dependencies (with lock handling)
 echo "📦 Updating system dependencies..."
-sudo apt-get update
-sudo apt-get install -y curl build-essential
+export DEBIAN_FRONTEND=noninteractive
+
+# Wait for any existing apt process (e.g., unattended-upgrades)
+while sudo fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+    echo "Waiting for apt lock..."
+    sleep 5
+done
+
+sudo -E apt-get update
+sudo -E apt-get install -y curl build-essential
 
 # 2. Install uv (The Python Package Manager)
 echo "⚡ Installing uv..."
 curl -LsSf https://astral.sh/uv/install.sh | sh
-source $HOME/.cargo/env
+source $HOME/.local/bin/env
 
 # 3. Setup Python Environment
 echo "🐍 Setting up Python with uv..."
 # Install Python 3.12 (Stable, modern)
 uv python install 3.12
 # Create virtual environment and install deps
+rm -rf .venv
 uv venv
 source .venv/bin/activate
 uv pip install -r requirements.txt
